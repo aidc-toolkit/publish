@@ -22,11 +22,6 @@ export interface PhaseState {
     dateTime?: Date;
 
     /**
-     * Tag.
-     */
-    tag?: string | undefined;
-
-    /**
      * Current step in publication; used to resume after failure recovery.
      */
     step?: string | undefined;

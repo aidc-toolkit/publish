@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { Repository } from "./configuration";
-import { PACKAGE_CONFIGURATION_PATH, PACKAGE_LOCK_CONFIGURATION_PATH, Publish } from "./publish";
+import { PACKAGE_CONFIGURATION_PATH, PACKAGE_LOCK_CONFIGURATION_PATH, Publish, type RepositoryState } from "./publish";
 
 const BACKUP_PACKAGE_CONFIGURATION_PATH = ".package.json";
 
@@ -34,9 +34,9 @@ class PublishAlpha extends Publish {
     /**
      * @inheritDoc
      */
-    protected dependencyVersionFor(): string {
-        // Dependency version is always "alpha".
-        return "alpha";
+    protected dependencyVersionFor(dependencyRepositoryState: RepositoryState): string {
+        // Lock to the version against which package was developed.
+        return dependencyRepositoryState.packageConfiguration.version;
     }
 
     /**

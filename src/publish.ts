@@ -45,7 +45,7 @@ export interface PackageConfiguration {
 /**
  * Repository state, derived from package configuration and updated during publishing.
  */
-interface RepositoryState {
+export interface RepositoryState {
     /**
      * Repository name from configuration.
      */
@@ -245,16 +245,13 @@ export abstract class Publish {
     /**
      * Get the dependency version for a dependency repository.
      *
-     * @param dependencyRepositoryName
-     * Dependency repository name.
-     *
-     * @param dependencyRepository
-     * Dependency repository.
+     * @param dependencyRepositoryState
+     * Dependency repository state.
      *
      * @returns
      * Dependency version.
      */
-    protected abstract dependencyVersionFor(dependencyRepositoryName: string, dependencyRepository: Repository): string;
+    protected abstract dependencyVersionFor(dependencyRepositoryState: RepositoryState): string;
 
     /**
      * Determine the latest date/time or undefined if all undefined.
@@ -790,7 +787,7 @@ export abstract class Publish {
                                     allDependencyPackageNames.push(dependencyPackageName);
 
                                     // Dependency changes will ultimately be discarded if there are no changes and no updates to repository states.
-                                    dependencies[dependencyPackageName] = this.dependencyVersionFor(dependencyRepositoryName, this.configuration.repositories[dependencyRepositoryName]);
+                                    dependencies[dependencyPackageName] = this.dependencyVersionFor(this._repositoryStates[dependencyRepositoryName]);
                                 }
                             }
                         }

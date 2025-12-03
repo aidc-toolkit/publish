@@ -5,7 +5,7 @@ import { Octokit } from "octokit";
 import { parse as yamlParse } from "yaml";
 import secureConfigurationJSON from "../config/publish.secure.json";
 import type { Repository } from "./configuration";
-import { Publish } from "./publish";
+import { Publish, type RepositoryState } from "./publish";
 
 /**
  * Configuration layout of publish.secure.json.
@@ -86,23 +86,22 @@ class PublishBeta extends Publish {
     /**
      * @inheritDoc
      */
-    protected dependencyVersionFor(dependencyRepositoryName: string, dependencyRepository: Repository): string {
+    protected dependencyVersionFor(dependencyRepositoryState: RepositoryState): string {
         let dependencyVersion: string;
+
+        const dependencyPackageVersion = dependencyRepositoryState.packageConfiguration.version;
+        const dependencyRepositoryName = dependencyRepositoryState.repositoryName;
+        const dependencyRepository = dependencyRepositoryState.repository;
 
         switch (dependencyRepository.dependencyType) {
             case "external":
-                dependencyVersion = "beta";
+                // Lock to the version against which package was developed.
+                dependencyVersion = dependencyPackageVersion;
                 break;
 
-            case "internal": {
-                const betaTag = dependencyRepository.phaseStates.beta?.tag;
-
-                if (betaTag === undefined) {
-                    throw new Error(`*** Internal error *** Beta tag not set for ${dependencyRepositoryName}`);
-                }
-
-                dependencyVersion = `${this.configuration.organization}/${dependencyRepositoryName}#${betaTag}`;
-            }
+            case "internal":
+                // Tag is the version preceded by 'v'.
+                dependencyVersion = `${this.configuration.organization}/${dependencyRepositoryName}#v${dependencyPackageVersion}`;
                 break;
 
             default:
@@ -338,7 +337,6 @@ class PublishBeta extends Publish {
 
             this.updatePhaseState({
                 dateTime: new Date(),
-                tag,
                 step: "complete"
             });
         }
