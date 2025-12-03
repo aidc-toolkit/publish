@@ -260,10 +260,10 @@ export abstract class Publish {
      * Determine the latest date/time or undefined if all undefined.
      *
      * @param initialDateTime
-     * Initial date/time if any.
+     * Initial date/time.
      *
      * @param additionalDateTimes
-     * Additional date/times if any.
+     * Additional date/times.
      *
      * @returns
      * Latest date/time.
@@ -274,13 +274,13 @@ export abstract class Publish {
      * Determine the latest date/time or undefined if all undefined.
      *
      * @param initialDateTime
-     * Initial date/time if any.
+     * Initial date/time.
      *
      * @param additionalDateTimes
-     * Additional date/times if any.
+     * Additional date/times.
      *
      * @returns
-     * Latest date/time if any.
+     * Latest date/time.
      */
     protected latestDateTime(initialDateTime: Date | undefined, ...additionalDateTimes: Array<Date | undefined>): Date | undefined {
         let latestDateTime = initialDateTime;
@@ -301,7 +301,7 @@ export abstract class Publish {
      * Repository.
      *
      * @param phaseDateTime
-     * Initial phase date/time if any.
+     * Initial phase date/time.
      *
      * @returns
      * Phase date/time or undefined if phase never before published.
@@ -396,7 +396,7 @@ export abstract class Publish {
      * Determine if an organization dependency has been updated.
      *
      * @param phaseDateTime
-     * Phase date/time of the current repository if any.
+     * Phase date/time of the current repository.
      *
      * @param dependencyRepositoryName
      * Dependency repository name.

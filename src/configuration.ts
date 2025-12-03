@@ -1,4 +1,4 @@
-import { type LogLevel, type LogLevels, omit, pick, propertyAs, type PropertyKeys } from "@aidc-toolkit/core";
+import { type LogLevels, omit, pick, propertyAs } from "@aidc-toolkit/core";
 import fs from "node:fs";
 import type { Logger } from "tslog";
 import sharedConfigurationJSON from "../config/publish.json";
@@ -17,12 +17,12 @@ export type Phase = "alpha" | "beta" | "production";
  */
 export interface PhaseState {
     /**
-     * Date/time the phase was last published if any.
+     * Date/time the phase was last published.
      */
     dateTime?: Date;
 
     /**
-     * Tag if any.
+     * Tag.
      */
     tag?: string | undefined;
 
@@ -81,7 +81,7 @@ interface SharedRepository {
     readonly excludePaths?: readonly string[];
 
     /**
-     * Beta and production phase states if any.
+     * Beta and production phase states.
      */
     readonly phaseStates?: Readonly<Partial<Record<"beta" | "production", PhaseState>>>;
 }
@@ -96,7 +96,7 @@ interface JSONSharedRepository extends Omit<SharedRepository, "dependencyType" |
     readonly dependencyType: string;
 
     /**
-     * Beta and production phase states if any.
+     * Beta and production phase states.
      */
     readonly phaseStates?: Readonly<Partial<Record<"beta" | "production", JSONPhaseState>>>;
 }
@@ -106,7 +106,7 @@ interface JSONSharedRepository extends Omit<SharedRepository, "dependencyType" |
  */
 interface LocalRepository {
     /**
-     * Alpha phase state if any.
+     * Alpha phase state.
      */
     readonly phaseStates?: Readonly<Partial<Record<"alpha", PhaseState>>>;
 }
@@ -116,7 +116,7 @@ interface LocalRepository {
  */
 interface JSONLocalRepository extends Omit<LocalRepository, "phaseStates"> {
     /**
-     * Alpha phase state if any.
+     * Alpha phase state.
      */
     readonly phaseStates?: Readonly<Partial<Record<"alpha", JSONPhaseState>>>;
 }
@@ -126,7 +126,7 @@ interface JSONLocalRepository extends Omit<LocalRepository, "phaseStates"> {
  */
 export interface Repository extends SharedRepository, LocalRepository {
     /**
-     * Phase states if any.
+     * Phase states.
      */
     readonly phaseStates: Partial<Record<Phase, PhaseState>>;
 }
@@ -163,7 +163,7 @@ interface LocalConfiguration {
     /**
      * Log level.
      */
-    readonly logLevel?: PropertyKeys<typeof LogLevels, LogLevel>;
+    readonly logLevel?: keyof typeof LogLevels;
 
     /**
      * Registry hosting organization's alpha repositories.
@@ -233,13 +233,13 @@ export function loadConfiguration(): Configuration {
     return {
         ...jsonSharedConfiguration,
         ...omit(jsonLocalConfiguration, "logLevel"),
-        ...propertyAs<keyof typeof LogLevels, JSONLocalConfiguration, "logLevel">(jsonLocalConfiguration, "logLevel"),
+        ...propertyAs<JSONLocalConfiguration, "logLevel", keyof typeof LogLevels>(jsonLocalConfiguration, "logLevel"),
         repositories: Object.fromEntries(Object.entries(jsonSharedConfiguration.repositories).map(([repositoryName, jsonSharedRepository]) => {
             const jsonLocalRepository = jsonLocalConfiguration.repositories[repositoryName] ?? {};
 
             return [repositoryName, {
                 ...jsonSharedRepository,
-                ...propertyAs<DependencyType, JSONSharedRepository, "dependencyType">(jsonSharedRepository, "dependencyType"),
+                ...propertyAs<JSONSharedRepository, "dependencyType", DependencyType>(jsonSharedRepository, "dependencyType"),
                 ...jsonLocalRepository,
                 phaseStates: {
                     ...fromJSONPhaseStates(jsonSharedRepository.phaseStates),
