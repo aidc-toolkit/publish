@@ -2,11 +2,11 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { Repository } from "./configuration";
 import {
-    RunOptions,
     PACKAGE_CONFIGURATION_PATH,
     PACKAGE_LOCK_CONFIGURATION_PATH,
     Publish,
-    type RepositoryState
+    type RepositoryState,
+    RunOptions
 } from "./publish";
 
 /**

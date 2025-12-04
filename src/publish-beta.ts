@@ -5,7 +5,7 @@ import { Octokit } from "octokit";
 import { parse as yamlParse } from "yaml";
 import secureConfigurationJSON from "../config/publish.secure.json";
 import type { Repository } from "./configuration";
-import { RunOptions, Publish, type RepositoryState } from "./publish";
+import { Publish, type RepositoryState, RunOptions } from "./publish";
 
 /**
  * Configuration layout of publish.secure.json.
