@@ -3,6 +3,7 @@
   "version": "1.0.25-beta",
   "description": "Publication utility for AIDC Toolkit",
   "type": "module",
+  "private": true,
   "main": "dist/index.js",
   "homepage": "https://aidc-toolkit.com/",
   "repository": {
