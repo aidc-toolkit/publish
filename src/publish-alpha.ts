@@ -187,7 +187,7 @@ class PublishAlpha extends Publish {
             }
         }
 
-        if (anyExternalUpdates) {
+        if (repositoryState.savePackageConfigurationPending || anyExternalUpdates) {
             // Save the dependency updates; this will be detected by call to anyChanges().
             this.savePackageConfiguration();
         }

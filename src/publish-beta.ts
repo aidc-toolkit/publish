@@ -263,7 +263,7 @@ class PublishBeta extends Publish {
             publish = !startingPublication && step !== "complete";
 
             // Ignore changes after publication process has started.
-            if (startingPublication && this.anyChanges(repositoryState.repository.phaseStates.alpha?.dateTime, false)) {
+            if (startingPublication && (repositoryState.savePackageConfigurationPending || this.anyChanges(repositoryState.repository.phaseStates.alpha?.dateTime, false))) {
                 throw new Error("Repository has changed since last alpha published");
             }
         }

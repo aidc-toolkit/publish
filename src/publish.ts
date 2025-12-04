@@ -110,6 +110,11 @@ export interface RepositoryState {
      * True if any dependencies have been updated.
      */
     readonly anyDependenciesUpdated: boolean;
+
+    /**
+     * True if package configuration has pending changes.
+     */
+    readonly savePackageConfigurationPending: boolean;
 }
 
 /**
@@ -551,7 +556,7 @@ export abstract class Publish {
 
                 for (const line of output) {
                     // Line is two-character status, space, and detail.
-                    const status = line.substring(0, 1);
+                    const status = line.substring(0, 2);
                     const [file, newFile] = line.substring(3).split(" -> ");
 
                     processChangedFile(status, file, newFile);
@@ -868,7 +873,8 @@ export abstract class Publish {
                             preReleaseIdentifier,
                             dependencyPackageNames,
                             allDependencyPackageNames,
-                            anyDependenciesUpdated
+                            anyDependenciesUpdated,
+                            savePackageConfigurationPending
                         };
 
                         // Save repository state for future repositories.
@@ -896,10 +902,6 @@ export abstract class Publish {
 
                                 savePackageConfigurationPending = false;
                             }
-                        }
-
-                        if (savePackageConfigurationPending) {
-                            this.savePackageConfiguration();
                         }
 
                         // eslint-disable-next-line no-await-in-loop -- Next iteration requires previous to finish.
