@@ -5,8 +5,9 @@
       "dependencyType": "external",
       "phaseStates": {
         "beta": {
-          "dateTime": "2025-12-04T20:54:05.000Z",
-          "version": "1.0.25-beta"
+          "dateTime": "2025-12-06T14:48:44.000Z",
+          "version": "1.0.26-beta",
+          "step": "complete"
         }
       }
     },
@@ -14,8 +15,9 @@
       "dependencyType": "external",
       "phaseStates": {
         "beta": {
-          "dateTime": "2025-12-04T21:06:05.000Z",
-          "version": "1.0.25-beta"
+          "dateTime": "2025-12-06T14:49:17.000Z",
+          "version": "1.0.26-beta",
+          "step": "complete"
         }
       }
     },
@@ -23,8 +25,9 @@
       "dependencyType": "external",
       "phaseStates": {
         "beta": {
-          "dateTime": "2025-12-04T21:07:55.000Z",
-          "version": "1.0.25-beta"
+          "dateTime": "2025-12-06T14:51:11.000Z",
+          "version": "1.0.26-beta",
+          "step": "complete"
         }
       }
     },
@@ -32,8 +35,9 @@
       "dependencyType": "external",
       "phaseStates": {
         "beta": {
-          "dateTime": "2025-12-04T21:09:03.000Z",
-          "version": "1.0.25-beta"
+          "dateTime": "2025-12-06T14:52:21.000Z",
+          "version": "1.0.26-beta",
+          "step": "complete"
         }
       }
     },
@@ -41,7 +45,8 @@
       "dependencyType": "none",
       "phaseStates": {
         "beta": {
-          "dateTime": "2025-12-04T21:09:09.000Z"
+          "dateTime": "2025-12-06T14:52:25.000Z",
+          "step": "complete"
         }
       }
     },
@@ -49,8 +54,9 @@
       "dependencyType": "external",
       "phaseStates": {
         "beta": {
-          "dateTime": "2025-12-04T21:09:48.000Z",
-          "version": "1.0.25-beta"
+          "dateTime": "2025-12-06T14:53:03.000Z",
+          "version": "1.0.26-beta",
+          "step": "complete"
         }
       }
     },
@@ -58,7 +64,8 @@
       "dependencyType": "none",
       "phaseStates": {
         "beta": {
-          "dateTime": "2025-12-04T21:09:56.000Z"
+          "dateTime": "2025-12-06T14:53:08.000Z",
+          "step": "complete"
         }
       }
     },
@@ -70,7 +77,8 @@
       ],
       "phaseStates": {
         "beta": {
-          "dateTime": "2025-12-04T22:26:57.000Z"
+          "dateTime": "2025-12-06T14:56:02.000Z",
+          "step": "complete"
         }
       }
     },
