@@ -97,17 +97,17 @@ export interface RepositoryState {
     preReleaseIdentifier: string | null;
 
     /**
-     * Dependency package names extracted directly from package configuration.
+     * All dependency repository states, including additional, in publication order.
      */
-    readonly dependencyPackageNames: readonly string[];
+    readonly allDependencyRepositoryStates: readonly RepositoryState[];
 
     /**
-     * All dependency package names in publication order.
+     * Updated dependency package names in publication order.
      */
-    readonly allDependencyPackageNames: readonly string[];
+    readonly updatedDependencyPackageNames: readonly string[];
 
     /**
-     * True if any dependencies have been updated.
+     * True if any dependencies, including additional, have been updated.
      */
     readonly anyDependenciesUpdated: boolean;
 
@@ -189,7 +189,7 @@ export abstract class Publish {
     /**
      * Current repository state.
      */
-    private _repositoryState: RepositoryState | undefined;
+   private  _repositoryState: RepositoryState | undefined;
 
     /**
      * Constructor.
@@ -259,10 +259,20 @@ export abstract class Publish {
     }
 
     /**
-     * Get the repository states, keyed on repository name.
+     * Get the repository state for a given repository name.
+     *
+     * @param repositoryName
+     * Repository name.
+     *
+     * @returns
+     * Repository state.
      */
-    protected get repositoryStates(): Record<string, Readonly<RepositoryState>> {
-        return this._repositoryStates;
+    protected getRepositoryStateFor(repositoryName: string): RepositoryState {
+        if (!(repositoryName in this._repositoryStates)) {
+            throw new Error(`Repository ${repositoryName} not yet published`);
+        }
+
+        return this._repositoryStates[repositoryName];
     }
 
     /**
@@ -433,8 +443,8 @@ export abstract class Publish {
      * @param phaseDateTime
      * Phase date/time of the current repository.
      *
-     * @param dependencyRepositoryName
-     * Dependency repository name.
+     * @param dependencyRepositoryState
+     * Dependency repository state.
      *
      * @param isAdditional
      * True if this is an additional dependency.
@@ -442,13 +452,10 @@ export abstract class Publish {
      * @returns
      * True if organization dependency has been updated.
      */
-    private isOrganizationDependencyUpdated(phaseDateTime: Date | undefined, dependencyRepositoryName: string, isAdditional: boolean): boolean {
+    private isOrganizationDependencyUpdated(phaseDateTime: Date | undefined, dependencyRepositoryState: RepositoryState, isAdditional: boolean): boolean {
         const dependencyString = !isAdditional ? "Dependency" : "Additional dependency";
 
-        // If dependency repository state exists, so does dependency repository.
-        if (!(dependencyRepositoryName in this.repositoryStates)) {
-            throw new Error(`${dependencyString} repository ${dependencyRepositoryName} not yet published`);
-        }
+        const dependencyRepositoryName = dependencyRepositoryState.repositoryName;
 
         const dependencyRepository = this.configuration.repositories[dependencyRepositoryName];
         const dependencyPhaseState = dependencyRepository.phaseStates[this.phase];
@@ -663,7 +670,7 @@ export abstract class Publish {
      */
     protected savePackageConfiguration(): void {
         const packageConfiguration = this.repositoryState.packageConfiguration;
-        
+
         if (this.dryRun) {
             this.logger.info(`Dry run: Saving package configuration\n${JSON.stringify(pick(packageConfiguration, "name", "version", "devDependencies", "dependencies"), null, 2)}\n`);
         } else {
@@ -721,11 +728,13 @@ export abstract class Publish {
      * Update organization dependencies.
      */
     protected updateOrganizationDependencies(): void {
-        const repositoryState = this.repositoryState;
+        const updatedDependencyPackageNames = this.repositoryState.updatedDependencyPackageNames;
 
-        this.logger.debug(`Updating organization dependencies [${repositoryState.allDependencyPackageNames.join(", ")}]`);
+        if (updatedDependencyPackageNames.length !== 0) {
+            this.logger.debug(`Updating organization dependencies [${updatedDependencyPackageNames.join(", ")}]`);
 
-        this.run(RunOptions.ParameterizeOnDryRun, false, "npm", "update", ...repositoryState.allDependencyPackageNames);
+            this.run(RunOptions.ParameterizeOnDryRun, false, "npm", "update", ...updatedDependencyPackageNames);
+        }
     }
 
     /**
@@ -828,8 +837,8 @@ export abstract class Publish {
                         const patchVersion = Number(parsedVersion[3]);
                         const preReleaseIdentifier = parsedVersion.length === 6 ? parsedVersion[5] : null;
 
-                        const dependencyPackageNames: string[] = [];
-                        const allDependencyPackageNames: string[] = [];
+                        const allDependencyRepositoryStates: RepositoryState[] = [];
+                        const updatedDependencyPackageNames: string[] = [];
 
                         let anyDependenciesUpdated = false;
                         let savePackageConfigurationPending = false;
@@ -842,27 +851,34 @@ export abstract class Publish {
                                 if (dependencyRepositoryName !== null) {
                                     this.logger.trace(`Organization dependency ${dependencyPackageName} from package configuration`);
 
-                                    // Check every dependency for logging purposes.
-                                    if (this.isOrganizationDependencyUpdated(phaseDateTime, dependencyRepositoryName, false)) {
+                                    const dependencyRepositoryState = this.getRepositoryStateFor(dependencyRepositoryName);
+
+                                    for (const dependencyDependencyRepositoryState of dependencyRepositoryState.allDependencyRepositoryStates) {
+                                        if (!allDependencyRepositoryStates.includes(dependencyDependencyRepositoryState)) {
+                                            this.logger.trace(`Organization dependency ${dependencyDependencyRepositoryState.packageConfiguration.name} from dependencies`);
+
+                                            allDependencyRepositoryStates.push(dependencyDependencyRepositoryState);
+
+                                            if (this.isOrganizationDependencyUpdated(phaseDateTime, dependencyDependencyRepositoryState, false)) {
+                                                updatedDependencyPackageNames.push(dependencyDependencyRepositoryState.packageConfiguration.name);
+
+                                                anyDependenciesUpdated = true;
+                                            }
+                                        }
+                                    }
+
+                                    // Current dependency repository state goes in last to preserve publication order.
+                                    allDependencyRepositoryStates.push(dependencyRepositoryState);
+
+                                    if (this.isOrganizationDependencyUpdated(phaseDateTime, dependencyRepositoryState, false)) {
                                         // Update dependency version to match latest update.
-                                        dependencies[dependencyPackageName] = this.dependencyVersionFor(this._repositoryStates[dependencyRepositoryName]);
+                                        dependencies[dependencyPackageName] = this.dependencyVersionFor(dependencyRepositoryState);
+
+                                        updatedDependencyPackageNames.push(dependencyPackageName);
 
                                         anyDependenciesUpdated = true;
                                         savePackageConfigurationPending = true;
                                     }
-
-                                    for (const dependencyDependencyPackageName of this.repositoryStates[dependencyRepositoryName].allDependencyPackageNames) {
-                                        if (!allDependencyPackageNames.includes(dependencyDependencyPackageName)) {
-                                            this.logger.trace(`Organization dependency ${dependencyDependencyPackageName} from dependencies`);
-
-                                            allDependencyPackageNames.push(dependencyDependencyPackageName);
-                                        }
-                                    }
-
-                                    dependencyPackageNames.push(dependencyPackageName);
-
-                                    // Current dependency package name goes in last to preserve hierarchy.
-                                    allDependencyPackageNames.push(dependencyPackageName);
                                 }
                             }
                         }
@@ -871,15 +887,14 @@ export abstract class Publish {
                             const additionalRepositoryNames: string[] = [];
 
                             for (const additionalDependencyRepositoryName of repository.additionalDependencies) {
-                                const additionalDependencyPackageName = `${this.atOrganization}/${additionalDependencyRepositoryName}`;
+                                const additionalDependencyRepositoryState = this._repositoryStates[additionalDependencyRepositoryName];
 
-                                if (allDependencyPackageNames.includes(additionalDependencyPackageName) || additionalRepositoryNames.includes(additionalDependencyRepositoryName)) {
+                                if (allDependencyRepositoryStates.includes(additionalDependencyRepositoryState) || additionalRepositoryNames.includes(additionalDependencyRepositoryName)) {
                                     this.logger.warn(`Additional dependency repository ${additionalDependencyRepositoryName} already a dependency`);
                                 } else {
                                     this.logger.trace(`Organization dependency ${additionalDependencyRepositoryName} from additional dependencies`);
 
-                                    // Check every dependency for logging purposes.
-                                    if (this.isOrganizationDependencyUpdated(phaseDateTime, additionalDependencyRepositoryName, true)) {
+                                    if (this.isOrganizationDependencyUpdated(phaseDateTime, additionalDependencyRepositoryState, true)) {
                                         anyDependenciesUpdated = true;
                                     }
 
@@ -899,14 +914,14 @@ export abstract class Publish {
                             minorVersion,
                             patchVersion,
                             preReleaseIdentifier,
-                            dependencyPackageNames,
-                            allDependencyPackageNames,
+                            allDependencyRepositoryStates,
+                            updatedDependencyPackageNames,
                             anyDependenciesUpdated,
                             savePackageConfigurationPending
                         };
 
                         // Save repository state for future repositories.
-                        this.repositoryStates[repositoryName] = this._repositoryState;
+                        this._repositoryStates[repositoryName] = this._repositoryState;
 
                         if (!this.isValidBranch()) {
                             throw new Error(`Branch ${branch} is not valid for ${this.phase} phase`);

@@ -207,7 +207,7 @@ class PublishAlpha extends Publish {
 
                 // Running this even if there are no dependency updates will update dependencies of dependencies.
                 this.run(RunOptions.ParameterizeOnDryRun, false, "npm", "update");
-            } else if (repositoryState.anyDependenciesUpdated) {
+            } else {
                 this.updateOrganizationDependencies();
             }
 
