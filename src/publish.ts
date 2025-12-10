@@ -154,42 +154,42 @@ export abstract class Publish {
     /**
      * Phase.
      */
-    private readonly _phase: Phase;
+    readonly #phase: Phase;
 
     /**
      * If true, outputs what would be run rather than running it.
      */
-    private readonly _dryRun: boolean;
+    readonly #dryRun: boolean;
 
     /**
      * Configuration. Merger of shared and local configurations.
      */
-    private readonly _configuration: Configuration;
+    readonly #configuration: Configuration;
 
     /**
      * Logger.
      */
-    private readonly _logger: Logger<unknown>;
+    readonly #logger: Logger<unknown>;
 
     /**
      * At organization.
      */
-    private readonly _atOrganization: string;
+    readonly #atOrganization: string;
 
     /**
      * At organization registry parameter.
      */
-    private readonly _atOrganizationRegistry: string;
+    readonly #atOrganizationRegistry: string;
 
     /**
      * Repository states, keyed on repository name.
      */
-    private readonly _repositoryStates: Record<string, Readonly<RepositoryState>>;
+    readonly #repositoryStates: Record<string, Readonly<RepositoryState>>;
 
     /**
      * Current repository state.
      */
-   private  _repositoryState: RepositoryState | undefined;
+    #repositoryState: RepositoryState | undefined;
 
     /**
      * Constructor.
@@ -201,61 +201,61 @@ export abstract class Publish {
      * If true, outputs what would be run rather than running it.
      */
     protected constructor(releaseType: Phase, dryRun: boolean) {
-        this._phase = releaseType;
-        this._dryRun = dryRun;
+        this.#phase = releaseType;
+        this.#dryRun = dryRun;
 
-        this._configuration = loadConfiguration();
+        this.#configuration = loadConfiguration();
 
-        this._logger = getLogger(this._configuration.logLevel);
+        this.#logger = getLogger(this.#configuration.logLevel);
 
-        this._atOrganization = `@${this.configuration.organization}`;
+        this.#atOrganization = `@${this.configuration.organization}`;
 
-        this._atOrganizationRegistry = `${this.atOrganization}:registry${releaseType === "alpha" ? `=${this.configuration.alphaRegistry}` : ""}`;
+        this.#atOrganizationRegistry = `${this.atOrganization}:registry${releaseType === "alpha" ? `=${this.configuration.alphaRegistry}` : ""}`;
 
-        this._repositoryStates = {};
-        this._repositoryState = undefined;
+        this.#repositoryStates = {};
+        this.#repositoryState = undefined;
     }
 
     /**
      * Get the phase.
      */
     protected get phase(): Phase {
-        return this._phase;
+        return this.#phase;
     }
 
     /**
      * Determine if outputs what would be run rather than running it.
      */
     protected get dryRun(): boolean {
-        return this._dryRun;
+        return this.#dryRun;
     }
 
     /**
      * Get the configuration.
      */
     protected get configuration(): Configuration {
-        return this._configuration;
+        return this.#configuration;
     }
 
     /**
      * Get the logger.
      */
     protected get logger(): Logger<unknown> {
-        return this._logger;
+        return this.#logger;
     }
 
     /**
      * Get the at organization.
      */
     protected get atOrganization(): string {
-        return this._atOrganization;
+        return this.#atOrganization;
     }
 
     /**
      * Get the at organization registry parameter.
      */
     protected get atOrganizationRegistry(): string {
-        return this._atOrganizationRegistry;
+        return this.#atOrganizationRegistry;
     }
 
     /**
@@ -268,11 +268,11 @@ export abstract class Publish {
      * Repository state.
      */
     protected getRepositoryStateFor(repositoryName: string): RepositoryState {
-        if (!(repositoryName in this._repositoryStates)) {
+        if (!(repositoryName in this.#repositoryStates)) {
             throw new Error(`Repository ${repositoryName} not yet published`);
         }
 
-        return this._repositoryStates[repositoryName];
+        return this.#repositoryStates[repositoryName];
     }
 
     /**
@@ -280,11 +280,11 @@ export abstract class Publish {
      */
     protected get repositoryState(): RepositoryState {
         // Repository state should be accessed only during active publication.
-        if (this._repositoryState === undefined) {
+        if (this.#repositoryState === undefined) {
             throw new Error("Repository state not defined");
         }
 
-        return this._repositoryState;
+        return this.#repositoryState;
     }
 
     /**
@@ -452,7 +452,7 @@ export abstract class Publish {
      * @returns
      * True if organization dependency has been updated.
      */
-    private isOrganizationDependencyUpdated(phaseDateTime: Date | undefined, dependencyRepositoryState: RepositoryState, isAdditional: boolean): boolean {
+    #isOrganizationDependencyUpdated(phaseDateTime: Date | undefined, dependencyRepositoryState: RepositoryState, isAdditional: boolean): boolean {
         const dependencyString = !isAdditional ? "Dependency" : "Additional dependency";
 
         const dependencyRepositoryName = dependencyRepositoryState.repositoryName;
@@ -782,7 +782,7 @@ export abstract class Publish {
     /**
      * Save the configuration.
      */
-    private saveConfiguration(): void {
+    #saveConfiguration(): void {
         saveConfiguration(this.configuration, this.logger, this.dryRun);
     }
 
@@ -859,7 +859,7 @@ export abstract class Publish {
 
                                             allDependencyRepositoryStates.push(dependencyDependencyRepositoryState);
 
-                                            if (this.isOrganizationDependencyUpdated(phaseDateTime, dependencyDependencyRepositoryState, false)) {
+                                            if (this.#isOrganizationDependencyUpdated(phaseDateTime, dependencyDependencyRepositoryState, false)) {
                                                 updatedDependencyPackageNames.push(dependencyDependencyRepositoryState.packageConfiguration.name);
 
                                                 anyDependenciesUpdated = true;
@@ -870,7 +870,7 @@ export abstract class Publish {
                                     // Current dependency repository state goes in last to preserve publication order.
                                     allDependencyRepositoryStates.push(dependencyRepositoryState);
 
-                                    if (this.isOrganizationDependencyUpdated(phaseDateTime, dependencyRepositoryState, false)) {
+                                    if (this.#isOrganizationDependencyUpdated(phaseDateTime, dependencyRepositoryState, false)) {
                                         // Update dependency version to match latest update.
                                         dependencies[dependencyPackageName] = this.dependencyVersionFor(dependencyRepositoryState);
 
@@ -887,14 +887,14 @@ export abstract class Publish {
                             const additionalRepositoryNames: string[] = [];
 
                             for (const additionalDependencyRepositoryName of repository.additionalDependencies) {
-                                const additionalDependencyRepositoryState = this._repositoryStates[additionalDependencyRepositoryName];
+                                const additionalDependencyRepositoryState = this.#repositoryStates[additionalDependencyRepositoryName];
 
                                 if (allDependencyRepositoryStates.includes(additionalDependencyRepositoryState) || additionalRepositoryNames.includes(additionalDependencyRepositoryName)) {
                                     this.logger.warn(`Additional dependency repository ${additionalDependencyRepositoryName} already a dependency`);
                                 } else {
                                     this.logger.trace(`Organization dependency ${additionalDependencyRepositoryName} from additional dependencies`);
 
-                                    if (this.isOrganizationDependencyUpdated(phaseDateTime, additionalDependencyRepositoryState, true)) {
+                                    if (this.#isOrganizationDependencyUpdated(phaseDateTime, additionalDependencyRepositoryState, true)) {
                                         anyDependenciesUpdated = true;
                                     }
 
@@ -903,7 +903,7 @@ export abstract class Publish {
                             }
                         }
 
-                        this._repositoryState = {
+                        this.#repositoryState = {
                             repositoryName,
                             repository,
                             phaseState,
@@ -921,7 +921,7 @@ export abstract class Publish {
                         };
 
                         // Save repository state for future repositories.
-                        this._repositoryStates[repositoryName] = this._repositoryState;
+                        this.#repositoryStates[repositoryName] = this.#repositoryState;
 
                         if (!this.isValidBranch()) {
                             throw new Error(`Branch ${branch} is not valid for ${this.phase} phase`);
@@ -951,12 +951,12 @@ export abstract class Publish {
                         await this.publish();
                     } finally {
                         // Clear repository state to prevent accidental access.
-                        this._repositoryState = undefined;
+                        this.#repositoryState = undefined;
 
                         // Return to the start directory.
                         process.chdir(startDirectory);
 
-                        this.saveConfiguration();
+                        this.#saveConfiguration();
                     }
                 // Non-external repositories may be private and not accessible to all developers.
                 } else if (repository.dependencyType === "external") {
@@ -966,7 +966,7 @@ export abstract class Publish {
 
             this.finalizeAll();
 
-            this.saveConfiguration();
+            this.#saveConfiguration();
 
             if (this.phase !== "alpha") {
                 this.commitModified(`Published ${this.phase} release.`, SHARED_CONFIGURATION_PATH);

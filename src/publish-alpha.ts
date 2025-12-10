@@ -15,7 +15,7 @@ class PublishAlpha extends Publish {
     /**
      * If true, update all dependencies automatically.
      */
-    private readonly _updateAll: boolean;
+    readonly #updateAll: boolean;
 
     /**
      * Constructor.
@@ -31,7 +31,7 @@ class PublishAlpha extends Publish {
     constructor(updateAll: boolean, dryRun: boolean) {
         super("alpha", dryRun);
 
-        this._updateAll = updateAll;
+        this.#updateAll = updateAll;
     }
 
     /**
@@ -73,7 +73,7 @@ class PublishAlpha extends Publish {
      * @returns
      * Array of parameter names.
      */
-    private static parseParameterNames(s: string): string[] {
+    static #parseParameterNames(s: string): string[] {
         const parameterRegExp = /\{\{.+?}}/g;
 
         const parameterNames: string[] = [];
@@ -102,7 +102,7 @@ class PublishAlpha extends Publish {
      * @param parent
      * Parent key name (set recursively).
      */
-    private static assertValidResources(enResources: object, locale: string, localeResources: object, parent?: string): void {
+    static #assertValidResources(enResources: object, locale: string, localeResources: object, parent?: string): void {
         const enResourcesMap = new Map<string, object>(Object.entries(enResources));
         const localeResourcesMap = new Map<string, object>(Object.entries(localeResources));
 
@@ -123,10 +123,10 @@ class PublishAlpha extends Publish {
 
                 if (enValueType === "string") {
                     // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- Value is known to be string.
-                    const enParameterNames = PublishAlpha.parseParameterNames(enValue as unknown as string);
+                    const enParameterNames = PublishAlpha.#parseParameterNames(enValue as unknown as string);
 
                     // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- Value is known to be string.
-                    const localeParameterNames = PublishAlpha.parseParameterNames(localeValue as unknown as string);
+                    const localeParameterNames = PublishAlpha.#parseParameterNames(localeValue as unknown as string);
 
                     for (const enParameterName of enParameterNames) {
                         if (!localeParameterNames.includes(enParameterName)) {
@@ -140,7 +140,7 @@ class PublishAlpha extends Publish {
                         }
                     }
                 } else if (enValueType === "object") {
-                    PublishAlpha.assertValidResources(enValue, locale, localeValue, `${parent === undefined ? "" : `${parent}.`}${enKey}`);
+                    PublishAlpha.#assertValidResources(enValue, locale, localeValue, `${parent === undefined ? "" : `${parent}.`}${enKey}`);
                 }
             // Full locale falls back to language so ignore if missing.
             } else if (!isFullLocale) {
@@ -173,9 +173,9 @@ class PublishAlpha extends Publish {
                         const [latestVersion] = this.run(RunOptions.RunAlways, true, "npm", "view", dependencyPackageName, "version");
 
                         if (latestVersion !== version.substring(1)) {
-                            this.logger.info(`Dependency ${dependencyPackageName}@${version} ${!this._updateAll ? "pending update" : "updating"} to version ${latestVersion}.`);
+                            this.logger.info(`Dependency ${dependencyPackageName}@${version} ${!this.#updateAll ? "pending update" : "updating"} to version ${latestVersion}.`);
 
-                            if (this._updateAll) {
+                            if (this.#updateAll) {
                                 currentDependencies[dependencyPackageName] = `^${latestVersion}`;
 
                                 anyExternalUpdates = true;
@@ -202,7 +202,7 @@ class PublishAlpha extends Publish {
                 this.run(RunOptions.SkipOnDryRun, false, "npm", "config", "set", this.atOrganizationRegistry, "--location", "project");
             }
 
-            if (this._updateAll) {
+            if (this.#updateAll) {
                 this.logger.debug("Updating all dependencies");
 
                 // Running this even if there are no dependency updates will update dependencies of dependencies.
@@ -248,7 +248,7 @@ class PublishAlpha extends Publish {
 
                     for (const [locale, resources] of localeResourcesMap.entries()) {
                         if (locale !== "en") {
-                            PublishAlpha.assertValidResources(enResources, locale, resources);
+                            PublishAlpha.#assertValidResources(enResources, locale, resources);
                         }
                     }
                 }

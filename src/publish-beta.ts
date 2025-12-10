@@ -61,12 +61,12 @@ class PublishBeta extends Publish {
     /**
      * Secure configuration.
      */
-    private readonly _secureConfiguration: SecureConfiguration = secureConfigurationJSON;
+    readonly #secureConfiguration: SecureConfiguration = secureConfigurationJSON;
 
     /**
      * Octokit.
      */
-    private readonly _octokit: Octokit;
+    readonly #octokit: Octokit;
 
     /**
      * Constructor.
@@ -77,8 +77,8 @@ class PublishBeta extends Publish {
     constructor(dryRun: boolean) {
         super("beta", dryRun);
 
-        this._octokit = new Octokit({
-            auth: this._secureConfiguration.token,
+        this.#octokit = new Octokit({
+            auth: this.#secureConfiguration.token,
             userAgent: `${this.configuration.organization} release`
         });
     }
@@ -149,7 +149,7 @@ class PublishBeta extends Publish {
      * @param stepRunner
      * Callback to execute step.
      */
-    private async runStep(step: Step, stepRunner: () => (void | Promise<void>)): Promise<void> {
+    async #runStep(step: Step, stepRunner: () => (void | Promise<void>)): Promise<void> {
         const phaseStateStep = this.repositoryState.phaseState.step;
 
         if (phaseStateStep === undefined || phaseStateStep === step) {
@@ -174,7 +174,7 @@ class PublishBeta extends Publish {
      *
      * Branch on which workflow is running.
      */
-    private async validateWorkflow(): Promise<void> {
+    async #validateWorkflow(): Promise<void> {
         if (this.dryRun) {
             this.logger.info("Dry run: Validate workflow");
         } else {
@@ -187,7 +187,7 @@ class PublishBeta extends Publish {
             do {
                 // eslint-disable-next-line no-await-in-loop -- Loop depends on awaited response.
                 const response = await setTimeout(2000).then(
-                    async () => this._octokit.rest.actions.listWorkflowRunsForRepo({
+                    async () => this.#octokit.rest.actions.listWorkflowRunsForRepo({
                         owner: this.configuration.organization,
                         repo: this.repositoryState.repositoryName,
                         head_sha: commitSHA
@@ -301,37 +301,37 @@ class PublishBeta extends Publish {
                 }
             }
 
-            await this.runStep("update", () => {
+            await this.#runStep("update", () => {
                 this.updateOrganizationDependencies();
             });
 
-            await this.runStep("build", () => {
+            await this.#runStep("build", () => {
                 this.run(RunOptions.SkipOnDryRun, false, "npm", "run", "build:release", "--if-present");
             });
 
-            await this.runStep("commit", () => {
+            await this.#runStep("commit", () => {
                 this.commitUpdatedPackageVersion();
             });
 
-            await this.runStep("tag", () => {
+            await this.#runStep("tag", () => {
                 this.run(RunOptions.SkipOnDryRun, false, "git", "tag", tag);
             });
 
-            await this.runStep("push", () => {
+            await this.#runStep("push", () => {
                 this.run(RunOptions.ParameterizeOnDryRun, false, "git", "push", "--atomic", "origin", repositoryState.branch, tag);
             });
 
             if (hasPushWorkflow) {
-                await this.runStep("workflow (push)", async () => {
-                    await this.validateWorkflow();
+                await this.#runStep("workflow (push)", async () => {
+                    await this.#validateWorkflow();
                 });
             }
 
-            await this.runStep("release", async () => {
+            await this.#runStep("release", async () => {
                 if (this.dryRun) {
                     this.logger.info("Dry run: Create release");
                 } else {
-                    await this._octokit.rest.repos.createRelease({
+                    await this.#octokit.rest.repos.createRelease({
                         owner: this.configuration.organization,
                         repo: repositoryState.repositoryName,
                         tag_name: tag,
@@ -342,8 +342,8 @@ class PublishBeta extends Publish {
             });
 
             if (hasReleaseWorkflow) {
-                await this.runStep("workflow (release)", async () => {
-                    await this.validateWorkflow();
+                await this.#runStep("workflow (release)", async () => {
+                    await this.#validateWorkflow();
                 });
             }
 
