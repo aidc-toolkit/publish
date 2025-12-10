@@ -513,7 +513,7 @@ export abstract class Publish {
          * New file name if status is "R", undefined otherwise.
          */
         function processChangedFile(status: string, file: string, newFile: string | undefined): void {
-            if (!/[ AMDR]{1,2}/.test(status)) {
+            if (!/^[ AMDR]{1,2}$/.test(status)) {
                 throw new Error(`Unknown status "${status}"`);
             }
 
@@ -570,14 +570,15 @@ export abstract class Publish {
         // Phase date/time is undefined if never before published.
         if (phaseDateTime !== undefined) {
             // Get all files committed since last published.
-            for (const line of this.run(RunOptions.RunAlways, true, "git", "log", "--since", phaseDateTime.toISOString(), "--name-status", "--pretty=oneline")) {
+            for (const line of this.run(RunOptions.RunAlways, true, "git", "log", "--since", phaseDateTime.toISOString(), "--name-status", "--reverse", "--pretty=oneline")) {
                 // Header starts with 40-character SHA.
                 if (/^[0-9a-f]{40} /.test(line)) {
                     logger.debug(`Commit SHA ${line.substring(0, 40)}`);
                 } else {
                     const [status, file, newFile] = line.split("\t");
 
-                    processChangedFile(status, file, newFile);
+                    // Only first character is of interest.
+                    processChangedFile(status.charAt(0), file, newFile);
                 }
             }
 
