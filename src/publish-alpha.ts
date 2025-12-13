@@ -2,11 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import process from "node:process";
 import type { Repository } from "./configuration.js";
-import {
-    Publish,
-    type RepositoryState,
-    RunOptions
-} from "./publish.js";
+import { Publish, RunOptions } from "./publish.js";
 
 /**
  * Publish alpha versions.
@@ -37,12 +33,12 @@ class PublishAlpha extends Publish {
     /**
      * @inheritDoc
      */
-    protected dependencyVersionFor(dependencyRepositoryState: RepositoryState): string {
+    protected dependencyVersionFor(dependencyRepositoryName: string): string {
         // Lock to version against which package is being developed.
-        const phaseStateVersion = dependencyRepositoryState.phaseState.version;
+        const phaseStateVersion = this.configuration.repositories[dependencyRepositoryName].phaseStates.alpha?.version;
 
         if (phaseStateVersion === undefined) {
-            throw new Error(`*** Internal error *** Version not set for dependency ${dependencyRepositoryState.repositoryName}`);
+            throw new Error(`*** Internal error *** Version not set for dependency ${dependencyRepositoryName}`);
         }
 
         return phaseStateVersion;
@@ -161,8 +157,8 @@ class PublishAlpha extends Publish {
     protected async publish(): Promise<void> {
         let anyExternalUpdates = false;
 
-        const repositoryState = this.repositoryState;
-        const packageConfiguration = repositoryState.packageConfiguration;
+        const transientPublishState = this.transientPublishState;
+        const packageConfiguration = transientPublishState.packageConfiguration;
 
         // Check for external updates, even if there are no changes.
         for (const currentDependencies of [packageConfiguration.devDependencies, packageConfiguration.dependencies]) {
@@ -186,17 +182,17 @@ class PublishAlpha extends Publish {
             }
         }
 
-        if (repositoryState.savePackageConfigurationPending || anyExternalUpdates) {
+        if (transientPublishState.savePackageConfigurationPending || anyExternalUpdates) {
             // Save the dependency updates; this will be detected by call to anyChanges().
             this.savePackageConfiguration();
         }
 
         // Nothing to do if there are no changes and dependencies haven't been updated.
-        if (this.anyChanges(repositoryState.phaseDateTime, true) || repositoryState.anyDependenciesUpdated) {
-            const switchToAlpha = repositoryState.preReleaseIdentifier !== "alpha";
+        if (this.anyChanges(transientPublishState.phaseDateTime, true) || transientPublishState.anyDependenciesUpdated) {
+            const switchToAlpha = transientPublishState.preReleaseIdentifier !== "alpha";
 
             if (switchToAlpha) {
-                this.updatePackageVersion(undefined, undefined, repositoryState.patchVersion + 1, "alpha");
+                this.updatePackageVersion(undefined, undefined, transientPublishState.patchVersion + 1, "alpha");
 
                 // Use specified registry for organization until no longer in alpha mode.
                 this.run(RunOptions.SkipOnDryRun, false, "npm", "config", "set", this.atOrganizationRegistry, "--location", "project");
@@ -261,7 +257,7 @@ class PublishAlpha extends Publish {
             this.run(RunOptions.SkipOnDryRun, false, "npm", "run", "test", "--if-present");
 
             // Nothing further required if this repository is not a dependency of others.
-            if (repositoryState.repository.dependencyType !== "none") {
+            if (transientPublishState.repository.dependencyType !== "none") {
                 // Package version is transient.
                 const version = this.updatePackageVersion(undefined, undefined, undefined, `alpha.${new Date().toISOString().replaceAll(/\D/g, "").substring(0, 12)}`);
 

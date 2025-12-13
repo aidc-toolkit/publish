@@ -25,21 +25,16 @@ export interface PhaseState {
      * Version; used by dependents.
      */
     version?: string | undefined;
-
-    /**
-     * Current step in publication; used to resume after failure recovery.
-     */
-    step?: string | undefined;
 }
 
 /**
  * Phase state in JSON file.
  */
-interface JSONPhaseState extends Omit<PhaseState, "dateTime"> {
+interface JSONPhaseState extends Omit<Readonly<PhaseState>, "dateTime"> {
     /**
      * Date/time the phase was last published, as a string.
      */
-    dateTime?: string;
+    readonly dateTime?: string;
 }
 
 /**
@@ -89,7 +84,7 @@ interface SharedRepository {
 /**
  * Shared repository configuration in JSON file.
  */
-interface JSONSharedRepository extends Omit<SharedRepository, "dependencyType" | "phaseStates"> {
+interface JSONSharedRepository extends Omit<Readonly<SharedRepository>, "dependencyType" | "phaseStates"> {
     /**
      * Dependency type, dictating how it is published, as a string.
      */
@@ -102,9 +97,24 @@ interface JSONSharedRepository extends Omit<SharedRepository, "dependencyType" |
 }
 
 /**
+ * Repository publish state, maintained during publication and deleted at the end.
+ */
+export interface RepositoryPublishState {
+    /**
+     * All dependency repository names, including additional, in publication order.
+     */
+    readonly allDependencyRepositoryNames: readonly string[];
+}
+
+/**
  * Local repository configuration.
  */
 interface LocalRepository {
+    /**
+     * Repository publish state.
+     */
+    repositoryPublishState?: RepositoryPublishState;
+
     /**
      * Alpha phase state.
      */
@@ -114,7 +124,7 @@ interface LocalRepository {
 /**
  * Local repository configuration in JSON file.
  */
-interface JSONLocalRepository extends Omit<LocalRepository, "phaseStates"> {
+interface JSONLocalRepository extends Omit<Readonly<LocalRepository>, "phaseStates"> {
     /**
      * Alpha phase state.
      */
@@ -149,11 +159,41 @@ interface SharedConfiguration {
 /**
  * Shared configuration in JSON file.
  */
-interface JSONSharedConfiguration extends Omit<SharedConfiguration, "repositories"> {
+interface JSONSharedConfiguration extends Omit<Readonly<SharedConfiguration>, "repositories"> {
     /**
      * Repositories.
      */
     readonly repositories: Readonly<Record<string, JSONSharedRepository>>;
+}
+
+/**
+ * Publish state.
+ */
+export interface PublishState {
+    /**
+     * Current phase in publication.
+     */
+    phase: Phase;
+
+    /**
+     * Current repository name in publication.
+     */
+    repositoryName?: string;
+
+    /**
+     * Current step in publication.
+     */
+    step?: string;
+}
+
+/**
+ * Publish state in JSON file.
+ */
+export interface JSONPublishState extends Omit<Readonly<PublishState>, "phase"> {
+    /**
+     * Current phase in publication, as a string.
+     */
+    readonly phase: string;
 }
 
 /**
@@ -171,6 +211,11 @@ interface LocalConfiguration {
     readonly alphaRegistry: string;
 
     /**
+     * Publish state.
+     */
+    publishState?: PublishState;
+
+    /**
      * Repositories.
      */
     readonly repositories: Readonly<Record<string, LocalRepository>>;
@@ -179,11 +224,16 @@ interface LocalConfiguration {
 /**
  * Local configuration in JSON file.
  */
-interface JSONLocalConfiguration extends Omit<LocalConfiguration, "logLevel" | "repositories"> {
+interface JSONLocalConfiguration extends Omit<Readonly<LocalConfiguration>, "logLevel" | "publishState" | "repositories"> {
     /**
      * Log level, as a string.
      */
     readonly logLevel?: string;
+
+    /**
+     * Publish state.
+     */
+    readonly publishState?: JSONPublishState;
 
     /**
      * Repositories.
@@ -232,8 +282,9 @@ export function loadConfiguration(): Configuration {
     // Merge shared and local configurations.
     return {
         ...jsonSharedConfiguration,
-        ...omit(jsonLocalConfiguration, "logLevel"),
+        ...omit(jsonLocalConfiguration, "logLevel", "publishState"),
         ...propertyAs<JSONLocalConfiguration, "logLevel", LogLevelKey>(jsonLocalConfiguration, "logLevel"),
+        ...propertyAs<JSONLocalConfiguration, "publishState", PublishState>(jsonLocalConfiguration, "publishState"),
         repositories: Object.fromEntries(Object.entries(jsonSharedConfiguration.repositories).map(([repositoryName, jsonSharedRepository]) => {
             const jsonLocalRepository = jsonLocalConfiguration.repositories[repositoryName] ?? {};
 
@@ -291,8 +342,9 @@ export function saveConfiguration(configuration: Configuration, logger: Logger<u
     };
 
     const jsonLocalConfiguration: JSONLocalConfiguration = {
-        ...pick(configuration, "logLevel", "alphaRegistry"),
+        ...pick(configuration, "logLevel", "alphaRegistry", "publishState"),
         repositories: Object.fromEntries(Object.entries(configuration.repositories).map(([repositoryName, repository]) => [repositoryName, {
+            ...pick(repository, "repositoryPublishState"),
             phaseStates: toJSONPhaseStates(pick(repository.phaseStates, "alpha"))
         }]))
     };

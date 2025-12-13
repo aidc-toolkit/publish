@@ -8,7 +8,9 @@ import {
     loadConfiguration,
     type Phase,
     type PhaseState,
+    type PublishState,
     type Repository,
+    type RepositoryPublishState,
     saveConfiguration,
     SHARED_CONFIGURATION_PATH
 } from "./configuration.js";
@@ -43,9 +45,9 @@ export interface PackageConfiguration {
 }
 
 /**
- * Repository state, derived from package configuration and updated during publishing.
+ * Transient publish state of current repository, derived from package configuration and updated during publishing.
  */
-export interface RepositoryState {
+export interface TransientPublishState {
     /**
      * Repository name from configuration.
      */
@@ -54,7 +56,7 @@ export interface RepositoryState {
     /**
      * Repository from configuration.
      */
-    repository: Repository;
+    readonly repository: Repository;
 
     /**
      * Phase state.
@@ -62,7 +64,8 @@ export interface RepositoryState {
     phaseState: PhaseState;
 
     /**
-     * Phase date/time or undefined if phase never before published.
+     * Phase date/time or undefined if phase never before published. May differ from date/time within `PhaseState`
+     * itself.
      */
     phaseDateTime: Date | undefined;
 
@@ -97,11 +100,6 @@ export interface RepositoryState {
     preReleaseIdentifier: string | null;
 
     /**
-     * All dependency repository states, including additional, in publication order.
-     */
-    readonly allDependencyRepositoryStates: readonly RepositoryState[];
-
-    /**
      * Updated dependency package names in publication order.
      */
     readonly updatedDependencyPackageNames: readonly string[];
@@ -114,7 +112,7 @@ export interface RepositoryState {
     /**
      * True if package configuration has pending changes.
      */
-    readonly savePackageConfigurationPending: boolean;
+    savePackageConfigurationPending: boolean;
 }
 
 /**
@@ -167,6 +165,11 @@ export abstract class Publish {
     readonly #configuration: Configuration;
 
     /**
+     * Publish state, same as in configuration but always defined during publication.
+     */
+    readonly #publishState: PublishState;
+
+    /**
      * Logger.
      */
     readonly #logger: Logger<unknown>;
@@ -182,38 +185,46 @@ export abstract class Publish {
     readonly #atOrganizationRegistry: string;
 
     /**
-     * Repository states, keyed on repository name.
+     * Transient publish state for current repository.
      */
-    readonly #repositoryStates: Record<string, Readonly<RepositoryState>>;
-
-    /**
-     * Current repository state.
-     */
-    #repositoryState: RepositoryState | undefined;
+    #transientPublishState: TransientPublishState | undefined;
 
     /**
      * Constructor.
      *
-     * @param releaseType
-     * Release type.
+     * @param phase
+     * Phase.
      *
      * @param dryRun
      * If true, outputs what would be run rather than running it.
      */
-    protected constructor(releaseType: Phase, dryRun: boolean) {
-        this.#phase = releaseType;
+    protected constructor(phase: Phase, dryRun: boolean) {
+        this.#phase = phase;
         this.#dryRun = dryRun;
 
         this.#configuration = loadConfiguration();
+        
+        if (this.#configuration.publishState === undefined) {
+            this.#publishState = {
+                phase
+            };
 
-        this.#logger = getLogger(this.#configuration.logLevel);
+            this.#configuration.publishState = this.#publishState;
+        } else {
+            this.#publishState = this.#configuration.publishState;
+            
+            if (this.#publishState.phase !== phase) {
+                throw new Error(`Attempting to publish ${phase} phase despite incomplete ${this.#publishState.phase} phase`);
+            }
+        }
+
+        this.#logger = getLogger(this.configuration.logLevel);
 
         this.#atOrganization = `@${this.configuration.organization}`;
 
-        this.#atOrganizationRegistry = `${this.atOrganization}:registry${releaseType === "alpha" ? `=${this.configuration.alphaRegistry}` : ""}`;
+        this.#atOrganizationRegistry = `${this.atOrganization}:registry${phase === "alpha" ? `=${this.configuration.alphaRegistry}` : ""}`;
 
-        this.#repositoryStates = {};
-        this.#repositoryState = undefined;
+        this.#transientPublishState = undefined;
     }
 
     /**
@@ -238,6 +249,13 @@ export abstract class Publish {
     }
 
     /**
+     * Get the publish state.
+     */
+    get publishState(): PublishState {
+        return this.#publishState;
+    }
+
+    /**
      * Get the logger.
      */
     protected get logger(): Logger<unknown> {
@@ -259,6 +277,19 @@ export abstract class Publish {
     }
 
     /**
+     * Get the package name for a repository name.
+     * 
+     * @param repositoryName
+     * Repository name.
+     * 
+     * @returns
+     * Package name.
+     */
+    protected getPackageName(repositoryName: string): string {
+        return `${this.atOrganization}/${repositoryName}`;
+    }
+
+    /**
      * Get the repository state for a given repository name.
      *
      * @param repositoryName
@@ -267,36 +298,38 @@ export abstract class Publish {
      * @returns
      * Repository state.
      */
-    protected getRepositoryStateFor(repositoryName: string): RepositoryState {
-        if (!(repositoryName in this.#repositoryStates)) {
+    protected getRepositoryPublishStateFor(repositoryName: string): RepositoryPublishState {
+        const repositoryPublishState = this.configuration.repositories[repositoryName].repositoryPublishState;
+        
+        if (repositoryPublishState === undefined) {
             throw new Error(`Repository ${repositoryName} not yet published`);
         }
 
-        return this.#repositoryStates[repositoryName];
+        return repositoryPublishState;
     }
 
     /**
-     * Get the current repository state.
+     * Get the transient publish state for current repository.
      */
-    protected get repositoryState(): RepositoryState {
+    protected get transientPublishState(): TransientPublishState {
         // Repository state should be accessed only during active publication.
-        if (this.#repositoryState === undefined) {
-            throw new Error("Repository state not defined");
+        if (this.#transientPublishState === undefined) {
+            throw new Error("Transient publish state not defined");
         }
 
-        return this.#repositoryState;
+        return this.#transientPublishState;
     }
 
     /**
      * Get the dependency version for a dependency repository.
      *
-     * @param dependencyRepositoryState
-     * Dependency repository state.
+     * @param dependencyRepositoryName
+     * Dependency repository name.
      *
      * @returns
      * Dependency version.
      */
-    protected abstract dependencyVersionFor(dependencyRepositoryState: RepositoryState): string;
+    protected abstract dependencyVersionFor(dependencyRepositoryName: string): string;
 
     /**
      * Determine the latest date/time or undefined if all undefined.
@@ -443,8 +476,8 @@ export abstract class Publish {
      * @param phaseDateTime
      * Phase date/time of the current repository.
      *
-     * @param dependencyRepositoryState
-     * Dependency repository state.
+     * @param dependencyRepositoryName
+     * Dependency repository name.
      *
      * @param isAdditional
      * True if this is an additional dependency.
@@ -452,10 +485,8 @@ export abstract class Publish {
      * @returns
      * True if organization dependency has been updated.
      */
-    #isOrganizationDependencyUpdated(phaseDateTime: Date | undefined, dependencyRepositoryState: RepositoryState, isAdditional: boolean): boolean {
+    #isOrganizationDependencyUpdated(phaseDateTime: Date | undefined, dependencyRepositoryName: string, isAdditional: boolean): boolean {
         const dependencyString = !isAdditional ? "Dependency" : "Additional dependency";
-
-        const dependencyRepositoryName = dependencyRepositoryState.repositoryName;
 
         const dependencyRepository = this.configuration.repositories[dependencyRepositoryName];
         const dependencyPhaseState = dependencyRepository.phaseStates[this.phase];
@@ -494,7 +525,7 @@ export abstract class Publish {
     protected anyChanges(phaseDateTime: Date | undefined, ignoreGitHub: boolean): boolean {
         let anyChanges: boolean;
 
-        const excludePaths = this.repositoryState.repository.excludePaths ?? [];
+        const excludePaths = this.transientPublishState.repository.excludePaths ?? [];
 
         const changedFilesSet = new Set<string>();
 
@@ -670,7 +701,7 @@ export abstract class Publish {
      * Save package configuration.
      */
     protected savePackageConfiguration(): void {
-        const packageConfiguration = this.repositoryState.packageConfiguration;
+        const packageConfiguration = this.transientPublishState.packageConfiguration;
 
         if (this.dryRun) {
             this.logger.info(`Dry run: Saving package configuration\n${JSON.stringify(pick(packageConfiguration, "name", "version", "devDependencies", "dependencies"), null, 2)}\n`);
@@ -698,27 +729,27 @@ export abstract class Publish {
      * Updated package version.
      */
     protected updatePackageVersion(majorVersion: number | undefined, minorVersion: number | undefined, patchVersion: number | undefined, preReleaseIdentifier: string | null | undefined): string {
-        const repositoryState = this.repositoryState;
+        const transientPublishState = this.transientPublishState;
 
         if (majorVersion !== undefined) {
-            repositoryState.majorVersion = majorVersion;
+            transientPublishState.majorVersion = majorVersion;
         }
 
         if (minorVersion !== undefined) {
-            repositoryState.minorVersion = minorVersion;
+            transientPublishState.minorVersion = minorVersion;
         }
 
         if (patchVersion !== undefined) {
-            repositoryState.patchVersion = patchVersion;
+            transientPublishState.patchVersion = patchVersion;
         }
 
         if (preReleaseIdentifier !== undefined) {
-            repositoryState.preReleaseIdentifier = preReleaseIdentifier;
+            transientPublishState.preReleaseIdentifier = preReleaseIdentifier;
         }
 
-        const version = `${repositoryState.majorVersion}.${repositoryState.minorVersion}.${repositoryState.patchVersion}${repositoryState.preReleaseIdentifier !== null ? `-${repositoryState.preReleaseIdentifier}` : ""}`;
+        const version = `${transientPublishState.majorVersion}.${transientPublishState.minorVersion}.${transientPublishState.patchVersion}${transientPublishState.preReleaseIdentifier !== null ? `-${transientPublishState.preReleaseIdentifier}` : ""}`;
 
-        repositoryState.packageConfiguration.version = version;
+        transientPublishState.packageConfiguration.version = version;
 
         this.savePackageConfiguration();
 
@@ -729,7 +760,7 @@ export abstract class Publish {
      * Update organization dependencies.
      */
     protected updateOrganizationDependencies(): void {
-        const updatedDependencyPackageNames = this.repositoryState.updatedDependencyPackageNames;
+        const updatedDependencyPackageNames = this.transientPublishState.updatedDependencyPackageNames;
 
         if (updatedDependencyPackageNames.length !== 0) {
             this.logger.debug(`Updating organization dependencies [${updatedDependencyPackageNames.join(", ")}]`);
@@ -745,18 +776,18 @@ export abstract class Publish {
      * Files to commit; if none, defaults to "--all".
      */
     protected commitUpdatedPackageVersion(...files: string[]): void {
-        this.commitModified(`Updated to version ${this.repositoryState.packageConfiguration.version}.`, ...files);
+        this.commitModified(`Updated to version ${this.transientPublishState.packageConfiguration.version}.`, ...files);
     }
 
     /**
-     * Update the phase state. This will replace the phase state object in the repository and repository state and may
-     * update the phase date/time in the repository state.
+     * Update the phase state. This will replace the phase state object in the repository and the transient publish
+     * state and may update the phase date/time in the transient publish state.
      *
      * @param phaseState
      * Partial phases state. Only those properties provided will be updated.
      */
     protected updatePhaseState(phaseState: Partial<PhaseState>): void {
-        const repositoryState = this.repositoryState;
+        const transientPublishState = this.transientPublishState;
 
         const phaseStateDateTime = phaseState.dateTime !== undefined ?
             {
@@ -766,17 +797,17 @@ export abstract class Publish {
             {};
 
         const updatedPhaseState = {
-            ...this.repositoryState.phaseState,
+            ...transientPublishState.phaseState,
             ...phaseState,
             ...phaseStateDateTime
         };
 
-        repositoryState.repository.phaseStates[this.phase] = updatedPhaseState;
-        repositoryState.phaseState = updatedPhaseState;
+        transientPublishState.repository.phaseStates[this.phase] = updatedPhaseState;
+        transientPublishState.phaseState = updatedPhaseState;
 
         // Setting the phase date/time overrides the logic of its initial determination.
         if (phaseStateDateTime.dateTime !== undefined) {
-            repositoryState.phaseDateTime = phaseStateDateTime.dateTime;
+            transientPublishState.phaseDateTime = phaseStateDateTime.dateTime;
         }
     }
 
@@ -785,6 +816,159 @@ export abstract class Publish {
      */
     #saveConfiguration(): void {
         saveConfiguration(this.configuration, this.logger, this.dryRun);
+    }
+
+    /**
+     * Build the publish state for the current repository.
+     *
+     * @param repositoryName
+     * Current repository name.
+     *
+     * @param repository
+     * Current repository.
+     */
+    #buildPublishState(repositoryName: string, repository: Repository): void {
+        let phaseState = repository.phaseStates[this.phase];
+
+        // Create phase state if necessary.
+        if (phaseState === undefined) {
+            phaseState = {};
+
+            // eslint-disable-next-line no-param-reassign -- Repository is necessarily updated as part of building transient phase state.
+            repository.phaseStates[this.phase] = phaseState;
+        }
+
+        const phaseDateTime = this.getPhaseDateTime(repository, phaseState.dateTime);
+
+        const branch = this.run(RunOptions.RunAlways, true, "git", "branch", "--show-current")[0];
+
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- Package configuration format is known.
+        const packageConfiguration = JSON.parse(fs.readFileSync(PACKAGE_CONFIGURATION_PATH).toString()) as PackageConfiguration;
+
+        const version = packageConfiguration.version;
+
+        const parsedVersion = /^(\d+)\.(\d+)\.(\d+)(-(alpha|beta))?$/.exec(version);
+
+        if (parsedVersion === null) {
+            throw new Error(`Invalid package version ${version}`);
+        }
+
+        const majorVersion = Number(parsedVersion[1]);
+        const minorVersion = Number(parsedVersion[2]);
+        const patchVersion = Number(parsedVersion[3]);
+        const preReleaseIdentifier = parsedVersion.length === 6 ? parsedVersion[5] : null;
+
+        const allDependencyRepositoryNames: string[] = [];
+        const updatedDependencyPackageNames: string[] = [];
+
+        let anyDependenciesUpdated = false;
+        let savePackageConfigurationPending = false;
+
+        for (const dependencies of [packageConfiguration.devDependencies ?? {}, packageConfiguration.dependencies ?? {}]) {
+            for (const dependencyPackageName of Object.keys(dependencies)) {
+                const dependencyRepositoryName = this.dependencyRepositoryName(dependencyPackageName);
+
+                // Dependency repository name is null if dependency is not within the organization.
+                if (dependencyRepositoryName !== null) {
+                    this.logger.trace(`Organization dependency ${dependencyPackageName} from package configuration`);
+
+                    const dependencyRepositoryPublishState = this.getRepositoryPublishStateFor(dependencyRepositoryName);
+
+                    for (const dependencyDependencyRepositoryName of dependencyRepositoryPublishState.allDependencyRepositoryNames) {
+                        if (!allDependencyRepositoryNames.includes(dependencyDependencyRepositoryName)) {
+                            const dependencyDependencyPackageName = this.getPackageName(dependencyDependencyRepositoryName);
+
+                            this.logger.trace(`Organization dependency ${dependencyDependencyPackageName} from dependencies`);
+
+                            allDependencyRepositoryNames.push(dependencyDependencyRepositoryName);
+
+                            if (this.#isOrganizationDependencyUpdated(phaseDateTime, dependencyDependencyRepositoryName, false)) {
+                                updatedDependencyPackageNames.push(dependencyDependencyPackageName);
+
+                                anyDependenciesUpdated = true;
+                            }
+                        }
+                    }
+
+                    // Current dependency repository name goes in last to preserve publication order.
+                    allDependencyRepositoryNames.push(dependencyRepositoryName);
+
+                    if (this.#isOrganizationDependencyUpdated(phaseDateTime, dependencyRepositoryName, false)) {
+                        // Update dependency version to match latest update.
+                        dependencies[dependencyPackageName] = this.dependencyVersionFor(dependencyRepositoryName);
+
+                        updatedDependencyPackageNames.push(dependencyPackageName);
+
+                        anyDependenciesUpdated = true;
+                        savePackageConfigurationPending = true;
+                    }
+                }
+            }
+        }
+
+        if (repository.additionalDependencies !== undefined) {
+            const additionalRepositoryNames: string[] = [];
+
+            for (const additionalDependencyRepositoryName of repository.additionalDependencies) {
+                if (allDependencyRepositoryNames.includes(additionalDependencyRepositoryName) || additionalRepositoryNames.includes(additionalDependencyRepositoryName)) {
+                    this.logger.warn(`Additional dependency repository ${additionalDependencyRepositoryName} already a dependency`);
+                } else {
+                    this.logger.trace(`Organization dependency ${this.getPackageName(additionalDependencyRepositoryName)} from additional dependencies`);
+
+                    if (this.#isOrganizationDependencyUpdated(phaseDateTime, additionalDependencyRepositoryName, true)) {
+                        anyDependenciesUpdated = true;
+                    }
+
+                    additionalRepositoryNames.push(additionalDependencyRepositoryName);
+                }
+            }
+        }
+
+        this.#transientPublishState = {
+            repositoryName,
+            repository,
+            phaseState,
+            phaseDateTime,
+            branch,
+            packageConfiguration,
+            majorVersion,
+            minorVersion,
+            patchVersion,
+            preReleaseIdentifier,
+            updatedDependencyPackageNames,
+            anyDependenciesUpdated,
+            savePackageConfigurationPending
+        };
+
+        if (!this.isValidBranch()) {
+            throw new Error(`Branch ${branch} is not valid for ${this.phase} phase`);
+        }
+
+        const parsedBranch = /^v(\d+)\.(\d+)/.exec(branch);
+
+        // If this is a version branch, update the package version if required.
+        if (parsedBranch !== null) {
+            const branchMajorVersion = Number(parsedBranch[1]);
+            const branchMinorVersion = Number(parsedBranch[2]);
+
+            // If in a version branch and version doesn't match, update it.
+            if (majorVersion !== branchMajorVersion || minorVersion !== branchMinorVersion) {
+                if (majorVersion !== branchMajorVersion ? majorVersion !== branchMajorVersion - 1 : minorVersion !== branchMinorVersion - 1) {
+                    throw new Error(`Invalid transition from ${majorVersion}.${minorVersion} to ${branchMajorVersion}.${branchMinorVersion}`);
+                }
+
+                this.updatePackageVersion(branchMajorVersion, branchMinorVersion, 0, null);
+                this.commitUpdatedPackageVersion(PACKAGE_CONFIGURATION_PATH);
+
+                this.#transientPublishState.savePackageConfigurationPending = false;
+            }
+        }
+
+        // Save repository publish state for future repositories.
+        // eslint-disable-next-line no-param-reassign -- Repository is necessarily updated as part of building transient phase state.
+        repository.repositoryPublishState = {
+            allDependencyRepositoryNames
+        };
     }
 
     /**
@@ -800,169 +984,42 @@ export abstract class Publish {
             const startDirectory = process.cwd();
 
             for (const [repositoryName, repository] of Object.entries(this.configuration.repositories)) {
-                // All repositories are expected to be children of the parent of this repository.
-                const directory = `../${repository.directory ?? repositoryName}`;
+                if (this.publishState.repositoryName === undefined || this.publishState.repositoryName === repositoryName) {
+                    this.publishState.repositoryName = repositoryName;
 
-                if (fs.existsSync(directory) && fs.statSync(directory).isDirectory()) {
-                    this.logger.info(`Repository ${repositoryName}...`);
+                    // All repository directories are expected to be children of the parent of this repository.
+                    const directory = `../${repository.directory ?? repositoryName}`;
 
-                    process.chdir(directory);
+                    if (fs.existsSync(directory) && fs.statSync(directory).isDirectory()) {
+                        this.logger.info(`Repository ${repositoryName}...`);
 
-                    let phaseState = repository.phaseStates[this.phase];
+                        try {
+                            process.chdir(directory);
 
-                    // Create phase state if necessary.
-                    if (phaseState === undefined) {
-                        phaseState = {};
+                            this.#buildPublishState(repositoryName, repository);
 
-                        repository.phaseStates[this.phase] = phaseState;
+                            // eslint-disable-next-line no-await-in-loop -- Next iteration requires previous to finish.
+                            await this.publish();
+
+                            delete this.publishState.repositoryName;
+                            delete this.publishState.step;
+                        } finally {
+                            // Return to the start directory.
+                            process.chdir(startDirectory);
+
+                            this.#saveConfiguration();
+                        }
+                        // Non-external repositories may be private and not accessible to all developers.
+                    } else if (repository.dependencyType === "external") {
+                        throw new Error(`Repository ${repositoryName} not found`);
                     }
-
-                    try {
-                        const phaseDateTime = this.getPhaseDateTime(repository, phaseState.dateTime);
-
-                        const branch = this.run(RunOptions.RunAlways, true, "git", "branch", "--show-current")[0];
-
-                        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- Package configuration format is known.
-                        const packageConfiguration = JSON.parse(fs.readFileSync(PACKAGE_CONFIGURATION_PATH).toString()) as PackageConfiguration;
-
-                        const version = packageConfiguration.version;
-
-                        const parsedVersion = /^(\d+)\.(\d+)\.(\d+)(-(alpha|beta))?$/.exec(version);
-
-                        if (parsedVersion === null) {
-                            throw new Error(`Invalid package version ${version}`);
-                        }
-
-                        const majorVersion = Number(parsedVersion[1]);
-                        const minorVersion = Number(parsedVersion[2]);
-                        const patchVersion = Number(parsedVersion[3]);
-                        const preReleaseIdentifier = parsedVersion.length === 6 ? parsedVersion[5] : null;
-
-                        const allDependencyRepositoryStates: RepositoryState[] = [];
-                        const updatedDependencyPackageNames: string[] = [];
-
-                        let anyDependenciesUpdated = false;
-                        let savePackageConfigurationPending = false;
-
-                        for (const dependencies of [packageConfiguration.devDependencies ?? {}, packageConfiguration.dependencies ?? {}]) {
-                            for (const dependencyPackageName of Object.keys(dependencies)) {
-                                const dependencyRepositoryName = this.dependencyRepositoryName(dependencyPackageName);
-
-                                // Dependency repository name is null if dependency is not within the organization.
-                                if (dependencyRepositoryName !== null) {
-                                    this.logger.trace(`Organization dependency ${dependencyPackageName} from package configuration`);
-
-                                    const dependencyRepositoryState = this.getRepositoryStateFor(dependencyRepositoryName);
-
-                                    for (const dependencyDependencyRepositoryState of dependencyRepositoryState.allDependencyRepositoryStates) {
-                                        if (!allDependencyRepositoryStates.includes(dependencyDependencyRepositoryState)) {
-                                            this.logger.trace(`Organization dependency ${dependencyDependencyRepositoryState.packageConfiguration.name} from dependencies`);
-
-                                            allDependencyRepositoryStates.push(dependencyDependencyRepositoryState);
-
-                                            if (this.#isOrganizationDependencyUpdated(phaseDateTime, dependencyDependencyRepositoryState, false)) {
-                                                updatedDependencyPackageNames.push(dependencyDependencyRepositoryState.packageConfiguration.name);
-
-                                                anyDependenciesUpdated = true;
-                                            }
-                                        }
-                                    }
-
-                                    // Current dependency repository state goes in last to preserve publication order.
-                                    allDependencyRepositoryStates.push(dependencyRepositoryState);
-
-                                    if (this.#isOrganizationDependencyUpdated(phaseDateTime, dependencyRepositoryState, false)) {
-                                        // Update dependency version to match latest update.
-                                        dependencies[dependencyPackageName] = this.dependencyVersionFor(dependencyRepositoryState);
-
-                                        updatedDependencyPackageNames.push(dependencyPackageName);
-
-                                        anyDependenciesUpdated = true;
-                                        savePackageConfigurationPending = true;
-                                    }
-                                }
-                            }
-                        }
-
-                        if (repository.additionalDependencies !== undefined) {
-                            const additionalRepositoryNames: string[] = [];
-
-                            for (const additionalDependencyRepositoryName of repository.additionalDependencies) {
-                                const additionalDependencyRepositoryState = this.#repositoryStates[additionalDependencyRepositoryName];
-
-                                if (allDependencyRepositoryStates.includes(additionalDependencyRepositoryState) || additionalRepositoryNames.includes(additionalDependencyRepositoryName)) {
-                                    this.logger.warn(`Additional dependency repository ${additionalDependencyRepositoryName} already a dependency`);
-                                } else {
-                                    this.logger.trace(`Organization dependency ${additionalDependencyRepositoryName} from additional dependencies`);
-
-                                    if (this.#isOrganizationDependencyUpdated(phaseDateTime, additionalDependencyRepositoryState, true)) {
-                                        anyDependenciesUpdated = true;
-                                    }
-
-                                    additionalRepositoryNames.push(additionalDependencyRepositoryName);
-                                }
-                            }
-                        }
-
-                        this.#repositoryState = {
-                            repositoryName,
-                            repository,
-                            phaseState,
-                            phaseDateTime,
-                            branch,
-                            packageConfiguration,
-                            majorVersion,
-                            minorVersion,
-                            patchVersion,
-                            preReleaseIdentifier,
-                            allDependencyRepositoryStates,
-                            updatedDependencyPackageNames,
-                            anyDependenciesUpdated,
-                            savePackageConfigurationPending
-                        };
-
-                        // Save repository state for future repositories.
-                        this.#repositoryStates[repositoryName] = this.#repositoryState;
-
-                        if (!this.isValidBranch()) {
-                            throw new Error(`Branch ${branch} is not valid for ${this.phase} phase`);
-                        }
-
-                        const parsedBranch = /^v(\d+)\.(\d+)/.exec(branch);
-
-                        // If this is a version branch, update the package version if required.
-                        if (parsedBranch !== null) {
-                            const branchMajorVersion = Number(parsedBranch[1]);
-                            const branchMinorVersion = Number(parsedBranch[2]);
-
-                            // If in a version branch and version doesn't match, update it.
-                            if (majorVersion !== branchMajorVersion || minorVersion !== branchMinorVersion) {
-                                if (majorVersion !== branchMajorVersion ? majorVersion !== branchMajorVersion - 1 : minorVersion !== branchMinorVersion - 1) {
-                                    throw new Error(`Invalid transition from ${majorVersion}.${minorVersion} to ${branchMajorVersion}.${branchMinorVersion}`);
-                                }
-
-                                this.updatePackageVersion(branchMajorVersion, branchMinorVersion, 0, null);
-                                this.commitUpdatedPackageVersion(PACKAGE_CONFIGURATION_PATH);
-
-                                savePackageConfigurationPending = false;
-                            }
-                        }
-
-                        // eslint-disable-next-line no-await-in-loop -- Next iteration requires previous to finish.
-                        await this.publish();
-                    } finally {
-                        // Clear repository state to prevent accidental access.
-                        this.#repositoryState = undefined;
-
-                        // Return to the start directory.
-                        process.chdir(startDirectory);
-
-                        this.#saveConfiguration();
-                    }
-                // Non-external repositories may be private and not accessible to all developers.
-                } else if (repository.dependencyType === "external") {
-                    throw new Error(`Repository ${repositoryName} not found`);
                 }
+            }
+
+            delete this.configuration.publishState;
+
+            for (const repository of Object.values(this.configuration.repositories)) {
+                delete repository.repositoryPublishState;
             }
 
             this.finalizeAll();
