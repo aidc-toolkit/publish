@@ -5,8 +5,8 @@
       "dependencyType": "external",
       "phaseStates": {
         "beta": {
-          "dateTime": "2025-12-13T21:16:52.000Z",
-          "version": "1.0.29-beta"
+          "dateTime": "2025-12-14T18:26:16.000Z",
+          "version": "1.0.31-beta"
         }
       }
     },
@@ -14,8 +14,8 @@
       "dependencyType": "external",
       "phaseStates": {
         "beta": {
-          "dateTime": "2025-12-13T21:17:35.000Z",
-          "version": "1.0.28-beta"
+          "dateTime": "2025-12-14T18:26:51.000Z",
+          "version": "1.0.31-beta"
         }
       }
     },
@@ -23,8 +23,8 @@
       "dependencyType": "external",
       "phaseStates": {
         "beta": {
-          "dateTime": "2025-12-13T21:19:31.000Z",
-          "version": "1.0.28-beta"
+          "dateTime": "2025-12-14T18:28:40.000Z",
+          "version": "1.0.31-beta"
         }
       }
     },
@@ -32,8 +32,8 @@
       "dependencyType": "external",
       "phaseStates": {
         "beta": {
-          "dateTime": "2025-12-13T21:21:07.000Z",
-          "version": "1.0.28-beta"
+          "dateTime": "2025-12-14T18:29:46.000Z",
+          "version": "1.0.31-beta"
         }
       }
     },
@@ -41,7 +41,7 @@
       "dependencyType": "none",
       "phaseStates": {
         "beta": {
-          "dateTime": "2025-12-13T21:21:11.000Z"
+          "dateTime": "2025-12-14T18:29:50.000Z"
         }
       }
     },
@@ -49,8 +49,8 @@
       "dependencyType": "external",
       "phaseStates": {
         "beta": {
-          "dateTime": "2025-12-13T21:21:51.000Z",
-          "version": "1.0.28-beta"
+          "dateTime": "2025-12-14T18:30:24.000Z",
+          "version": "1.0.31-beta"
         }
       }
     },
@@ -58,7 +58,7 @@
       "dependencyType": "none",
       "phaseStates": {
         "beta": {
-          "dateTime": "2025-12-13T21:21:57.000Z"
+          "dateTime": "2025-12-14T18:30:30.000Z"
         }
       }
     },
@@ -70,7 +70,7 @@
       ],
       "phaseStates": {
         "beta": {
-          "dateTime": "2025-12-13T21:24:47.000Z"
+          "dateTime": "2025-12-14T18:33:20.000Z"
         }
       }
     },
