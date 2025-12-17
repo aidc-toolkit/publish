@@ -52,7 +52,7 @@ interface WorkflowConfiguration {
 /**
  * Publish steps.
  */
-type Step = "update" | "build" | "commit" | "tag" | "push" | "workflow (push)" | "release" | "workflow (release)";
+type Step = "build" | "commit" | "tag" | "push" | "workflow (push)" | "release" | "workflow (release)";
 
 /**
  * Publish beta versions.
@@ -131,10 +131,10 @@ class PublishBeta extends Publish {
      * @inheritDoc
      */
     protected isValidBranch(): boolean {
-        const transientPublishState = this.transientPublishState;
+        const repositoryPublishState = this.repositoryPublishState;
 
         // Branch for beta phase must match version.
-        return transientPublishState.branch === `v${transientPublishState.majorVersion}.${transientPublishState.minorVersion}`;
+        return repositoryPublishState.branch === `v${repositoryPublishState.majorVersion}.${repositoryPublishState.minorVersion}`;
     }
 
     /**
@@ -173,7 +173,7 @@ class PublishBeta extends Publish {
         if (this.dryRun) {
             this.logger.info("Dry run: Validate workflow");
         } else {
-            const commitSHA = this.run(RunOptions.RunAlways, true, "git", "rev-parse", this.transientPublishState.branch)[0];
+            const commitSHA = this.run(RunOptions.RunAlways, true, "git", "rev-parse", this.repositoryPublishState.branch)[0];
 
             let completed = false;
             let queryCount = 0;
@@ -184,7 +184,7 @@ class PublishBeta extends Publish {
                 const response = await setTimeout(2000).then(
                     async () => this.#octokit.rest.actions.listWorkflowRunsForRepo({
                         owner: this.configuration.organization,
-                        repo: this.transientPublishState.repositoryName,
+                        repo: this.repositoryPublishState.repositoryName,
                         head_sha: commitSHA
                     })
                 );
@@ -223,16 +223,16 @@ class PublishBeta extends Publish {
      * @inheritDoc
      */
     protected async publish(): Promise<void> {
-        const transientPublishState = this.transientPublishState;
+        const repositoryPublishState = this.repositoryPublishState;
 
-        if (transientPublishState.preReleaseIdentifier === "alpha") {
-            if (this.anyChanges(transientPublishState.repository.phaseStates.alpha?.dateTime, false)) {
+        if (repositoryPublishState.preReleaseIdentifier === "alpha") {
+            if (this.anyChanges(repositoryPublishState.repository.phaseStates.alpha?.dateTime, false)) {
                 throw new Error("Repository has changed since last alpha published");
             }
 
             const version = this.updatePackageVersion(undefined, undefined, undefined, "beta");
 
-            if (transientPublishState.repository.dependencyType !== "none") {
+            if (repositoryPublishState.repository.dependencyType !== "none") {
                 // Save version to be picked up by dependents.
                 this.updatePhaseState({
                     version
@@ -242,11 +242,11 @@ class PublishBeta extends Publish {
             // Revert to default registry for organization.
             this.run(RunOptions.SkipOnDryRun, false, "npm", "config", "delete", this.atOrganizationRegistry, "--location", "project");
         // Ignore changes after publication process has started.
-        } else if (this.publishState.step === undefined && (transientPublishState.savePackageConfigurationPending || this.anyChanges(transientPublishState.repository.phaseStates.alpha?.dateTime, false))) {
+        } else if (this.publishState.step === undefined && this.anyChanges(repositoryPublishState.repository.phaseStates.alpha?.dateTime, false)) {
             throw new Error("Repository has changed since last alpha published");
         }
 
-        const tag = `v${transientPublishState.packageConfiguration.version}`;
+        const tag = `v${repositoryPublishState.packageConfiguration.version}`;
 
         if (this.publishState.step !== undefined) {
             this.logger.debug(`Repository failed at step "${this.publishState.step}" on prior run`);
@@ -278,10 +278,6 @@ class PublishBeta extends Publish {
             }
         }
 
-        await this.#runStep("update", () => {
-            this.updateOrganizationDependencies();
-        });
-
         await this.#runStep("build", () => {
             this.run(RunOptions.SkipOnDryRun, false, "npm", "run", "build:release", "--if-present");
         });
@@ -295,7 +291,7 @@ class PublishBeta extends Publish {
         });
 
         await this.#runStep("push", () => {
-            this.run(RunOptions.ParameterizeOnDryRun, false, "git", "push", "--atomic", "origin", transientPublishState.branch, tag);
+            this.run(RunOptions.ParameterizeOnDryRun, false, "git", "push", "--atomic", "origin", repositoryPublishState.branch, tag);
         });
 
         if (hasPushWorkflow) {
@@ -310,7 +306,7 @@ class PublishBeta extends Publish {
             } else {
                 await this.#octokit.rest.repos.createRelease({
                     owner: this.configuration.organization,
-                    repo: transientPublishState.repositoryName,
+                    repo: repositoryPublishState.repositoryName,
                     tag_name: tag,
                     name: `Release ${tag}`,
                     prerelease: true

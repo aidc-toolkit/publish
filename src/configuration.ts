@@ -97,24 +97,9 @@ interface JSONSharedRepository extends Omit<Readonly<SharedRepository>, "depende
 }
 
 /**
- * Repository publish state, maintained during publication and deleted at the end.
- */
-export interface RepositoryPublishState {
-    /**
-     * All dependency repository names, including additional, in publication order.
-     */
-    readonly allDependencyRepositoryNames: readonly string[];
-}
-
-/**
  * Local repository configuration.
  */
 interface LocalRepository {
-    /**
-     * Repository publish state.
-     */
-    repositoryPublishState?: RepositoryPublishState;
-
     /**
      * Alpha phase state.
      */
@@ -344,7 +329,7 @@ export function saveConfiguration(configuration: Configuration, logger: Logger<u
     const jsonLocalConfiguration: JSONLocalConfiguration = {
         ...pick(configuration, "logLevel", "alphaRegistry", "publishState"),
         repositories: Object.fromEntries(Object.entries(configuration.repositories).map(([repositoryName, repository]) => [repositoryName, {
-            ...pick(repository, "repositoryPublishState"),
+            ...pick(repository),
             phaseStates: toJSONPhaseStates(pick(repository.phaseStates, "alpha"))
         }]))
     };

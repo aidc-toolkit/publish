@@ -157,8 +157,8 @@ class PublishAlpha extends Publish {
     protected async publish(): Promise<void> {
         let anyExternalUpdates = false;
 
-        const transientPublishState = this.transientPublishState;
-        const packageConfiguration = transientPublishState.packageConfiguration;
+        const repositoryPublishState = this.repositoryPublishState;
+        const packageConfiguration = repositoryPublishState.packageConfiguration;
 
         // Check for external updates, even if there are no changes.
         for (const currentDependencies of [packageConfiguration.devDependencies, packageConfiguration.dependencies]) {
@@ -182,29 +182,22 @@ class PublishAlpha extends Publish {
             }
         }
 
-        if (transientPublishState.savePackageConfigurationPending || anyExternalUpdates) {
-            // Save the dependency updates; this will be detected by call to anyChanges().
+        if (anyExternalUpdates) {
+            this.logger.debug("Updating external dependencies");
+            
+            // Save the package configuration; this will install all the updates and be detected by the call to anyChanges().
             this.savePackageConfiguration();
         }
 
         // Nothing to do if there are no changes and dependencies haven't been updated.
-        if (this.anyChanges(transientPublishState.phaseDateTime, true) || transientPublishState.anyDependenciesUpdated) {
-            const switchToAlpha = transientPublishState.preReleaseIdentifier !== "alpha";
+        if (this.anyChanges(repositoryPublishState.phaseDateTime, true) || repositoryPublishState.anyDependenciesUpdated) {
+            const switchToAlpha = repositoryPublishState.preReleaseIdentifier !== "alpha";
 
             if (switchToAlpha) {
-                this.updatePackageVersion(undefined, undefined, transientPublishState.patchVersion + 1, "alpha");
-
                 // Use specified registry for organization until no longer in alpha mode.
                 this.run(RunOptions.SkipOnDryRun, false, "npm", "config", "set", this.atOrganizationRegistry, "--location", "project");
-            }
 
-            if (this.#updateAll) {
-                this.logger.debug("Updating all dependencies");
-
-                // Running this even if there are no dependency updates will update dependencies of dependencies.
-                this.run(RunOptions.ParameterizeOnDryRun, false, "npm", "update");
-            } else {
-                this.updateOrganizationDependencies();
+                this.updatePackageVersion(undefined, undefined, repositoryPublishState.patchVersion + 1, "alpha");
             }
 
             // Run lint if present.
@@ -257,7 +250,7 @@ class PublishAlpha extends Publish {
             this.run(RunOptions.SkipOnDryRun, false, "npm", "run", "test", "--if-present");
 
             // Nothing further required if this repository is not a dependency of others.
-            if (transientPublishState.repository.dependencyType !== "none") {
+            if (repositoryPublishState.repository.dependencyType !== "none") {
                 // Package version is transient.
                 const version = this.updatePackageVersion(undefined, undefined, undefined, `alpha.${new Date().toISOString().replaceAll(/\D/g, "").substring(0, 12)}`);
 
