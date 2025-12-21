@@ -515,7 +515,7 @@ export abstract class Publish {
          */
         function processChangedFile(status: string, file: string, newFile: string | undefined): void {
             if (!/^[ AMDR]{1,2}$/.test(status)) {
-                throw new Error(`Unknown status "${status}"`);
+                throw new Error(`Unknown status "${status} for file ${file}"`);
             }
 
             let resolvedStatus: string;
