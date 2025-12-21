@@ -37,6 +37,10 @@
         }
       }
     },
+    "data": {
+      "dependencyType": "none",
+      "phaseStates": {}
+    },
     "demo": {
       "dependencyType": "none",
       "phaseStates": {
