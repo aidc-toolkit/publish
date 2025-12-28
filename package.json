@@ -1,11 +1,15 @@
 {
   "name": "@aidc-toolkit/publish",
-  "version": "1.0.24-beta",
+  "version": "1.0.32-alpha",
   "description": "Publication utility for AIDC Toolkit",
   "type": "module",
+  "private": true,
   "main": "dist/index.js",
   "homepage": "https://aidc-toolkit.com/",
-  "repository": "aidc-toolkit/publish",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aidc-toolkit/publish.git"
+  },
   "bugs": {
     "url": "https://github.com/aidc-toolkit/publish/issues"
   },
@@ -21,13 +25,12 @@
     "publish-beta": "tsx src/publish-beta.ts $*"
   },
   "devDependencies": {
-    "@aidc-toolkit/dev": "beta",
+    "@aidc-toolkit/dev": "1.0.32-alpha.202512211159",
     "@octokit/types": "^16.0.0",
-    "@types/node": "^24.10.1",
     "octokit": "^5.0.5",
     "yaml": "^2.8.2"
   },
   "dependencies": {
-    "@aidc-toolkit/core": "beta"
+    "@aidc-toolkit/core": "1.0.32-alpha.202512211159"
   }
 }

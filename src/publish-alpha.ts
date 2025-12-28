@@ -1,9 +1,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { Repository } from "./configuration";
-import { PACKAGE_CONFIGURATION_PATH, PACKAGE_LOCK_CONFIGURATION_PATH, Publish } from "./publish";
-
-const BACKUP_PACKAGE_CONFIGURATION_PATH = ".package.json";
+import process from "node:process";
+import type { Repository } from "./configuration.js";
+import { Publish, RunOptions } from "./publish.js";
 
 /**
  * Publish alpha versions.
@@ -12,7 +11,7 @@ class PublishAlpha extends Publish {
     /**
      * If true, update all dependencies automatically.
      */
-    private readonly _updateAll: boolean;
+    readonly #updateAll: boolean;
 
     /**
      * Constructor.
@@ -28,15 +27,21 @@ class PublishAlpha extends Publish {
     constructor(updateAll: boolean, dryRun: boolean) {
         super("alpha", dryRun);
 
-        this._updateAll = updateAll;
+        this.#updateAll = updateAll;
     }
 
     /**
      * @inheritDoc
      */
-    protected dependencyVersionFor(): string {
-        // Dependency version is always "alpha".
-        return "alpha";
+    protected dependencyVersionFor(dependencyRepositoryName: string): string {
+        // Lock to version against which package is being developed.
+        const phaseStateVersion = this.configuration.repositories[dependencyRepositoryName].phaseStates.alpha?.version;
+
+        if (phaseStateVersion === undefined) {
+            throw new Error(`*** Internal error *** Version not set for dependency ${dependencyRepositoryName}`);
+        }
+
+        return phaseStateVersion;
     }
 
     /**
@@ -64,7 +69,7 @@ class PublishAlpha extends Publish {
      * @returns
      * Array of parameter names.
      */
-    private static parseParameterNames(s: string): string[] {
+    static #parseParameterNames(s: string): string[] {
         const parameterRegExp = /\{\{.+?}}/g;
 
         const parameterNames: string[] = [];
@@ -93,7 +98,7 @@ class PublishAlpha extends Publish {
      * @param parent
      * Parent key name (set recursively).
      */
-    private static assertValidResources(enResources: object, locale: string, localeResources: object, parent?: string): void {
+    static #assertValidResources(enResources: object, locale: string, localeResources: object, parent?: string): void {
         const enResourcesMap = new Map<string, object>(Object.entries(enResources));
         const localeResourcesMap = new Map<string, object>(Object.entries(localeResources));
 
@@ -114,10 +119,10 @@ class PublishAlpha extends Publish {
 
                 if (enValueType === "string") {
                     // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- Value is known to be string.
-                    const enParameterNames = PublishAlpha.parseParameterNames(enValue as unknown as string);
+                    const enParameterNames = PublishAlpha.#parseParameterNames(enValue as unknown as string);
 
                     // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- Value is known to be string.
-                    const localeParameterNames = PublishAlpha.parseParameterNames(localeValue as unknown as string);
+                    const localeParameterNames = PublishAlpha.#parseParameterNames(localeValue as unknown as string);
 
                     for (const enParameterName of enParameterNames) {
                         if (!localeParameterNames.includes(enParameterName)) {
@@ -131,7 +136,7 @@ class PublishAlpha extends Publish {
                         }
                     }
                 } else if (enValueType === "object") {
-                    PublishAlpha.assertValidResources(enValue, locale, localeValue, `${parent === undefined ? "" : `${parent}.`}${enKey}`);
+                    PublishAlpha.#assertValidResources(enValue, locale, localeValue, `${parent === undefined ? "" : `${parent}.`}${enKey}`);
                 }
             // Full locale falls back to language so ignore if missing.
             } else if (!isFullLocale) {
@@ -150,10 +155,10 @@ class PublishAlpha extends Publish {
      * @inheritDoc
      */
     protected async publish(): Promise<void> {
-        let anyExternalUpdates = false;
+        let savePackageConfigurationPending = false;
 
-        const repositoryState = this.repositoryState;
-        const packageConfiguration = repositoryState.packageConfiguration;
+        const repositoryPublishState = this.repositoryPublishState;
+        const packageConfiguration = repositoryPublishState.packageConfiguration;
 
         // Check for external updates, even if there are no changes.
         for (const currentDependencies of [packageConfiguration.devDependencies, packageConfiguration.dependencies]) {
@@ -161,15 +166,15 @@ class PublishAlpha extends Publish {
                 for (const [dependencyPackageName, version] of Object.entries(currentDependencies)) {
                     // Ignore organization dependencies.
                     if (this.dependencyRepositoryName(dependencyPackageName) === null && version.startsWith("^")) {
-                        const [latestVersion] = this.run(true, true, "npm", "view", dependencyPackageName, "version");
+                        const [latestVersion] = this.run(RunOptions.RunAlways, true, "npm", "view", dependencyPackageName, "version");
 
                         if (latestVersion !== version.substring(1)) {
-                            this.logger.info(`Dependency ${dependencyPackageName}@${version} ${!this._updateAll ? "pending update" : "updating"} to version ${latestVersion}.`);
+                            this.logger.info(`Dependency ${dependencyPackageName}@${version} ${!this.#updateAll ? "pending update" : "updating"} to version ${latestVersion}.`);
 
-                            if (this._updateAll) {
+                            if (this.#updateAll) {
                                 currentDependencies[dependencyPackageName] = `^${latestVersion}`;
 
-                                anyExternalUpdates = true;
+                                savePackageConfigurationPending = true;
                             }
                         }
                     }
@@ -177,38 +182,26 @@ class PublishAlpha extends Publish {
             }
         }
 
-        if (anyExternalUpdates) {
-            // Save the dependency updates; this will be detected by call to anyChanges().
+        if (savePackageConfigurationPending) {
             this.savePackageConfiguration();
         }
 
-        if (this._updateAll) {
-            this.logger.debug("Updating all dependencies");
-
-            // Running this even if there are no dependency updates will update dependencies of dependencies.
-            this.run(false, false, "npm", "update");
-        }
-
         // Nothing to do if there are no changes and dependencies haven't been updated.
-        if (this.anyChanges(repositoryState.phaseDateTime, true) || repositoryState.anyDependenciesUpdated) {
-            const switchToAlpha = repositoryState.preReleaseIdentifier !== "alpha";
+        if (this.anyChanges(repositoryPublishState.phaseDateTime, true) || repositoryPublishState.anyDependenciesUpdated) {
+            const switchToAlpha = repositoryPublishState.preReleaseIdentifier !== "alpha";
 
             if (switchToAlpha) {
-                // Previous publication was beta or production.
-                this.updatePackageVersion(undefined, undefined, repositoryState.patchVersion + 1, "alpha");
-
-                this.commitUpdatedPackageVersion(PACKAGE_CONFIGURATION_PATH);
-
                 // Use specified registry for organization until no longer in alpha mode.
-                this.run(false, false, "npm", "config", "set", this.atOrganizationRegistry, "--location", "project");
+                this.run(RunOptions.SkipOnDryRun, false, "npm", "config", "set", this.atOrganizationRegistry, "--location", "project");
+
+                this.updatePackageVersion(undefined, undefined, repositoryPublishState.patchVersion + 1, "alpha");
             }
 
-            if (repositoryState.anyDependenciesUpdated && (switchToAlpha || !this._updateAll)) {
-                this.updateOrganizationDependencies();
-            }
+            // Update the package lock configuration to pick up any changes prior to this point.
+            this.updatePackageLockConfiguration();
 
             // Run lint if present.
-            this.run(false, false, "npm", "run", "lint", "--if-present");
+            this.run(RunOptions.SkipOnDryRun, false, "npm", "run", "lint", "--if-present");
 
             const localePath = path.resolve("src/locale");
 
@@ -244,53 +237,46 @@ class PublishAlpha extends Publish {
 
                     for (const [locale, resources] of localeResourcesMap.entries()) {
                         if (locale !== "en") {
-                            PublishAlpha.assertValidResources(enResources, locale, resources);
+                            PublishAlpha.#assertValidResources(enResources, locale, resources);
                         }
                     }
                 }
             }
 
             // Run development build if present.
-            this.run(false, false, "npm", "run", "build:dev", "--if-present");
+            this.run(RunOptions.SkipOnDryRun, false, "npm", "run", "build:dev", "--if-present");
 
             // Run test if present.
-            this.run(false, false, "npm", "run", "test", "--if-present");
+            this.run(RunOptions.SkipOnDryRun, false, "npm", "run", "test", "--if-present");
 
-            const now = new Date();
             // Nothing further required if this repository is not a dependency of others.
-            if (repositoryState.repository.dependencyType !== "none") {
-                if (!this.dryRun) {
-                    // Backup the package configuration file.
-                    fs.renameSync(PACKAGE_CONFIGURATION_PATH, BACKUP_PACKAGE_CONFIGURATION_PATH);
-                }
+            if (repositoryPublishState.repository.dependencyType !== "none") {
+                // Package version is transient.
+                const version = this.updatePackageVersion(undefined, undefined, undefined, `alpha.${new Date().toISOString().replaceAll(/\D/g, "").substring(0, 12)}`);
+
+                this.updatePhaseState({
+                    version
+                });
 
                 try {
-                    // Package version is transient.
-                    this.updatePackageVersion(undefined, undefined, undefined, `alpha.${now.toISOString().replaceAll(/\D/g, "").substring(0, 12)}`);
-
                     // Publish to development NPM registry.
-                    this.run(false, false, "npm", "publish", "--tag", "alpha");
+                    this.run(RunOptions.ParameterizeOnDryRun, false, "npm", "publish", "--tag", "alpha");
 
                     // Unpublish all prior alpha versions.
                     // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- Output is a JSON array.
-                    for (const version of JSON.parse(this.run(true, true, "npm", "view", packageConfiguration.name, "versions", "--json").join("\n")) as string[]) {
-                        if (/^\d+.\d+.\d+-alpha.\d+$/.test(version) && version !== packageConfiguration.version) {
-                            this.run(false, false, "npm", "unpublish", `${packageConfiguration.name}@${version}`);
+                    for (const priorVersion of JSON.parse(this.run(RunOptions.RunAlways, true, "npm", "view", packageConfiguration.name, "versions", "--json").join("\n")) as string[]) {
+                        if (/^\d+.\d+.\d+-alpha.\d+$/.test(priorVersion) && priorVersion !== version) {
+                            this.run(RunOptions.ParameterizeOnDryRun, false, "npm", "unpublish", `${packageConfiguration.name}@${priorVersion}`);
                         }
                     }
                 } finally {
-                    if (!this.dryRun) {
-                        // Restore the package configuration file.
-                        fs.rmSync(PACKAGE_CONFIGURATION_PATH);
-                        fs.renameSync(BACKUP_PACKAGE_CONFIGURATION_PATH, PACKAGE_CONFIGURATION_PATH);
-                    }
+                    // Restore package version without date/time stamp.
+                    this.updatePackageVersion(undefined, undefined, undefined, "alpha");
                 }
             }
 
-            this.commitUpdatedPackageVersion(PACKAGE_LOCK_CONFIGURATION_PATH);
-
             this.updatePhaseState({
-                dateTime: now
+                dateTime: new Date()
             });
         }
     }
