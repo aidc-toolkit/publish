@@ -39,6 +39,9 @@
     },
     "data": {
       "dependencyType": "none",
+      "excludePaths": [
+        "docs/"
+      ],
       "phaseStates": {}
     },
     "demo": {
