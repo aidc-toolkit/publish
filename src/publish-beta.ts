@@ -181,8 +181,8 @@ class PublishBeta extends Publish {
 
             do {
                 // eslint-disable-next-line no-await-in-loop -- Loop depends on awaited response.
-                const response = await setTimeout(2000).then(
-                    async () => this.#octokit.rest.actions.listWorkflowRunsForRepo({
+                const response = await setTimeout(2000).then(async () =>
+                    this.#octokit.rest.actions.listWorkflowRunsForRepo({
                         owner: this.configuration.organization,
                         repo: this.repositoryPublishState.repositoryName,
                         head_sha: commitSHA
