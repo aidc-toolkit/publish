@@ -230,6 +230,7 @@ class PublishBeta extends Publish {
                 throw new Error("Repository has changed since last alpha published");
             }
 
+            // This will save the package configuration.
             const version = this.updatePackageVersion(undefined, undefined, undefined, "beta");
 
             if (repositoryPublishState.repository.dependencyType === "external" || repositoryPublishState.repository.dependencyType === "internal") {
@@ -298,7 +299,7 @@ class PublishBeta extends Publish {
         }
 
         await this.#runStep("push", () => {
-            this.run(RunOptions.ParameterizeOnDryRun, false, "git", "push", "--atomic", "origin", repositoryPublishState.branch, tag);
+            this.run(RunOptions.ParameterizeOnDryRun, false, "git", "push", "--atomic", "origin", repositoryPublishState.branch, ...(repositoryPublishState.repository.dependencyType !== "helper" ? [tag] : []));
         });
 
         if (hasPushWorkflow) {

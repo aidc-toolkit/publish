@@ -160,8 +160,6 @@ class PublishAlpha extends Publish {
 
         // Check for external updates, even if there are no changes, if working on the latest version.
         if (repositoryPublishState.repository.workingVersion === this.latestVersion) {
-            let savePackageConfigurationPending = false;
-
             for (const currentDependencies of [packageConfiguration.devDependencies, packageConfiguration.dependencies]) {
                 if (currentDependencies !== undefined) {
                     for (const [dependencyPackageName, version] of Object.entries(currentDependencies)) {
@@ -175,17 +173,17 @@ class PublishAlpha extends Publish {
                                 if (this.#updateAll) {
                                     currentDependencies[dependencyPackageName] = `^${latestVersion}`;
 
-                                    savePackageConfigurationPending = true;
+                                    repositoryPublishState.savePackageConfigurationPending = true;
                                 }
                             }
                         }
                     }
                 }
             }
+        }
 
-            if (savePackageConfigurationPending) {
-                this.savePackageConfiguration();
-            }
+        if (repositoryPublishState.savePackageConfigurationPending) {
+            this.savePackageConfiguration();
         }
 
         // Nothing to do if there are no changes and dependencies haven't been updated.

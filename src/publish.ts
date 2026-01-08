@@ -99,6 +99,11 @@ export interface RepositoryPublishState {
     preReleaseIdentifier: string | null;
 
     /**
+     * True if save package configuration is pending.
+     */
+    savePackageConfigurationPending: boolean;
+
+    /**
      * True if any dependencies, including additional, have been updated.
      */
     anyDependenciesUpdated: boolean;
@@ -684,13 +689,16 @@ export abstract class Publish {
      * Save package configuration.
      */
     protected savePackageConfiguration(): void {
-        const packageConfiguration = this.repositoryPublishState.packageConfiguration;
+        const repositoryPublishState = this.repositoryPublishState;
+        const packageConfiguration = repositoryPublishState.packageConfiguration;
 
         if (this.dryRun) {
             this.logger.info(`Dry run: Saving package configuration\n${JSON.stringify(pick(packageConfiguration, "name", "version", "devDependencies", "dependencies"), null, 2)}\n`);
         } else {
             fs.writeFileSync(PACKAGE_CONFIGURATION_PATH, `${JSON.stringify(packageConfiguration, null, 2)}\n`);
         }
+
+        repositoryPublishState.savePackageConfigurationPending = false;
     }
 
     /**
@@ -847,6 +855,7 @@ export abstract class Publish {
             minorVersion,
             patchVersion,
             preReleaseIdentifier,
+            savePackageConfigurationPending: false,
             anyDependenciesUpdated: false
         };
 
@@ -896,9 +905,8 @@ export abstract class Publish {
             }
         }
 
-        if (this.#repositoryPublishState.anyDependenciesUpdated) {
-            this.savePackageConfiguration();
-        }
+        // Saving the package configuration would affect check for any changes so defer it.
+        this.#repositoryPublishState.savePackageConfigurationPending = this.#repositoryPublishState.anyDependenciesUpdated;
 
         if (repository.additionalDependencies !== undefined) {
             for (const additionalDependencyRepositoryName of repository.additionalDependencies) {
