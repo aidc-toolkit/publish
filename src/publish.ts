@@ -1,4 +1,4 @@
-import { getLogger, pick, type Promisable } from "@aidc-toolkit/core";
+import { getLogger, i18nCoreInit, I18nEnvironments, pick, type Promisable } from "@aidc-toolkit/core";
 import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as process from "node:process";
@@ -929,6 +929,8 @@ export abstract class Publish {
      */
     async publishAll(): Promise<void> {
         try {
+            await i18nCoreInit(I18nEnvironments.CLI, false);
+
             const startDirectory = process.cwd();
 
             for (const [repositoryName, repository] of Object.entries(this.configuration.repositories)) {
