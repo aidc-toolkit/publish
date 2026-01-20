@@ -80,7 +80,8 @@
       "directory": "doc",
       "dependencyType": "application",
       "additionalDependencies": [
-        "demo"
+        "demo",
+        "microsoft-add-in"
       ],
       "phaseStates": {
         "beta": {
