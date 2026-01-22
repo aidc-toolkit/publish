@@ -26,8 +26,8 @@
       "dependencyType": "external",
       "phaseStates": {
         "beta": {
-          "dateTime": "2026-01-22T03:19:46.000Z",
-          "version": "1.0.36-beta"
+          "dateTime": "2026-01-22T19:09:50.000Z",
+          "version": "1.0.37-beta"
         }
       }
     },
@@ -35,8 +35,8 @@
       "dependencyType": "external",
       "phaseStates": {
         "beta": {
-          "dateTime": "2026-01-22T03:21:01.000Z",
-          "version": "1.0.36-beta"
+          "dateTime": "2026-01-22T19:11:14.000Z",
+          "version": "1.0.37-beta"
         }
       }
     },
@@ -47,7 +47,7 @@
       ],
       "phaseStates": {
         "beta": {
-          "dateTime": "2026-01-22T03:21:06.000Z"
+          "dateTime": "2026-01-22T19:11:18.000Z"
         }
       }
     },
@@ -55,7 +55,7 @@
       "dependencyType": "application",
       "phaseStates": {
         "beta": {
-          "dateTime": "2026-01-22T03:21:12.000Z"
+          "dateTime": "2026-01-22T19:11:21.000Z"
         }
       }
     },
@@ -63,8 +63,8 @@
       "dependencyType": "external",
       "phaseStates": {
         "beta": {
-          "dateTime": "2026-01-22T03:21:49.000Z",
-          "version": "1.0.38-beta"
+          "dateTime": "2026-01-22T19:12:06.000Z",
+          "version": "1.0.39-beta"
         }
       }
     },
@@ -72,7 +72,7 @@
       "dependencyType": "application",
       "phaseStates": {
         "beta": {
-          "dateTime": "2026-01-22T03:33:03.000Z"
+          "dateTime": "2026-01-22T19:12:11.000Z"
         }
       }
     },
@@ -85,7 +85,7 @@
       ],
       "phaseStates": {
         "beta": {
-          "dateTime": "2026-01-22T03:49:39.000Z"
+          "dateTime": "2026-01-22T19:22:02.000Z"
         }
       }
     },
