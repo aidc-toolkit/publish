@@ -53,7 +53,7 @@ interface WorkflowConfiguration {
 /**
  * Publication steps.
  */
-type Step = "install" | "build" | "commit" | "tag" | "push" | "workflow (push)" | "release" | "workflow (release)";
+type Step = "install" | "build" | "commit" | "tag" | "push" | "workflow (push)" | "release" | "workflow (release)" | "npm wait";
 
 /**
  * Beta release publisher.
@@ -245,9 +245,6 @@ class BetaPublisher extends Publisher {
 
             // Revert to default registry for organization.
             this.run(RunOptions.SkipOnDryRun, false, "npm", "config", "delete", this.atOrganizationRegistry, "--location", "project");
-
-            // Switching away from local registry causes problems for the NPM cache.
-            this.run(RunOptions.SkipOnDryRun, false, "npm", "cache", "clean", "-force");
         // Ignore changes after publication process has started.
         } else if (this.publishState.step === undefined) {
             if (this.anyChanges(repositoryPublishState.repository.phaseStates.beta?.dateTime, false)) {
@@ -340,6 +337,13 @@ class BetaPublisher extends Publisher {
                         await this.#validateWorkflow();
                     });
                 }
+            }
+
+            // External repositories need to give the NPM registry time to reindex.
+            if (repositoryPublishState.repository.dependencyType === "external") {
+                await this.#runStep("npm wait", async () =>
+                    setTimeout(10000)
+                );
             }
 
             this.updatePhaseState({
