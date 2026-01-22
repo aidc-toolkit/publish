@@ -1,6 +1,6 @@
 {
   "name": "@aidc-toolkit/publisher",
-  "version": "1.0.36-beta",
+  "version": "1.0.37-alpha",
   "description": "Publisher for AIDC Toolkit",
   "type": "module",
   "private": true,
@@ -23,15 +23,16 @@
     "lint": "eslint",
     "build:alpha": "tsc --noEmit",
     "publish-alpha": "tsx src/alpha-publisher.ts $*",
-    "publish-beta": "tsx src/beta-publisher.ts $*"
+    "publish-beta": "tsx src/non-alpha-publisher.ts beta $*",
+    "publish-production": "tsx src/non-alpha-publisher.ts production $*"
   },
   "devDependencies": {
-    "@aidc-toolkit/dev": "1.0.35-beta",
+    "@aidc-toolkit/dev": "1.0.36-alpha.202601222331",
     "@octokit/types": "^16.0.0",
     "octokit": "^5.0.5",
     "yaml": "^2.8.2"
   },
   "dependencies": {
-    "@aidc-toolkit/core": "1.0.36-beta"
+    "@aidc-toolkit/core": "1.0.37-alpha.202601222331"
   }
 }
