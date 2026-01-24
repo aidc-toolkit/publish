@@ -615,14 +615,17 @@ export abstract class Publisher {
             anyChanges = false;
 
             for (const changedFile of changedFilesSet) {
-                if (fs.lstatSync(changedFile).mtime > lastPublishedDateTime) {
+                // Files with spaces will have been quoted.
+                const unquotedChangedFile = changedFile.replace(/^"(?<s>.*)"$/u, "$<s>");
+
+                if (fs.lstatSync(unquotedChangedFile).mtime > lastPublishedDateTime) {
                     if (!anyChanges) {
                         logger.info("Changes");
 
                         anyChanges = true;
                     }
 
-                    logger.info(`>${changedFile}`);
+                    logger.info(`>${unquotedChangedFile}`);
                 }
             }
 
