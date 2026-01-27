@@ -1,5 +1,5 @@
 import { type LogLevelKey, omit, pick, propertyAs } from "@aidc-toolkit/core";
-import fs from "node:fs";
+import * as fs from "node:fs";
 import type { Logger } from "tslog";
 import sharedConfigurationJSON from "../config/publisher.json" with { type: "json" };
 import localConfigurationJSON from "../config/publisher.local.json" with { type: "json" };
