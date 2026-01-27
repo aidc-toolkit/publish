@@ -24,7 +24,7 @@
     "build:alpha": "tsc --noEmit",
     "publish-alpha": "tsx src/alpha-publisher.ts $*",
     "publish-beta": "tsx src/non-alpha-publisher.ts beta $*",
-    "publish-production": "tsx src/non-alpha-publisher.ts production $*"
+    "publish-prod": "tsx src/non-alpha-publisher.ts prod $*"
   },
   "devDependencies": {
     "@aidc-toolkit/dev": "1.0.39-beta",
