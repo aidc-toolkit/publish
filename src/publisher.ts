@@ -11,8 +11,7 @@ import {
     type PhaseState,
     type PublishState,
     type Repository,
-    saveConfiguration,
-    SHARED_CONFIGURATION_PATH
+    saveConfiguration
 } from "./configuration.js";
 
 export const PACKAGE_CONFIGURATION_PATH = "package.json";
@@ -965,10 +964,6 @@ export abstract class Publisher {
             this.finalize();
 
             this.#saveConfiguration();
-
-            if (this.phase !== "alpha") {
-                this.commitModified(`Published ${this.phase} release.`, SHARED_CONFIGURATION_PATH);
-            }
         } catch (e) {
             this.logger.error(e);
         }

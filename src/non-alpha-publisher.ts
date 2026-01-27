@@ -5,7 +5,7 @@ import { setTimeout } from "node:timers/promises";
 import { Octokit } from "octokit";
 import { parse as yamlParse } from "yaml";
 import secureConfigurationJSON from "../config/publisher.secure.json" with { type: "json" };
-import { NEXT_PHASE, type Phase, PREVIOUS_PHASE } from "./configuration.js";
+import { NEXT_PHASE, type Phase, PREVIOUS_PHASE, SHARED_CONFIGURATION_PATH } from "./configuration.js";
 import { Publisher, RunOptions } from "./publisher.js";
 
 /**
@@ -379,6 +379,17 @@ export class NonAlphaPublisher extends Publisher {
                 dateTime: new Date()
             });
         }
+    }
+
+    /**
+     * @inheritDoc
+     */
+    protected override finalize(): void {
+        super.finalize();
+
+        this.commitModified(`Published ${this.phase} release.`, SHARED_CONFIGURATION_PATH);
+
+        this.run(RunOptions.ParameterizeOnDryRun, false, "git", "push", "--atomic", "origin", this.repositoryPublishState.branch);
     }
 }
 
