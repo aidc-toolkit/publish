@@ -245,7 +245,7 @@ export class NonAlphaPublisher extends Publisher {
             if (previousPhase === "alpha") {
                 this.run(RunOptions.SkipOnDryRun, false, "npm", "config", "delete", this.atOrganizationRegistry, "--location", "project");
             }
-        } else if (preReleaseIdentifier === phase) {
+        } else if ((preReleaseIdentifier ?? "prod") === phase) {
             // Ignore changes after publication process has started.
             if (this.publishState.step === undefined) {
                 if (this.anyChanges(repository.phaseStates[phase]?.dateTime, false)) {
