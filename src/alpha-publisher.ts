@@ -111,17 +111,18 @@ class AlphaPublisher extends Publisher {
         for (const [enKey, enValue] of enResourcesMap) {
             const enFullKey = `${parent === undefined ? "" : `${parent}.`}${enKey}`;
 
-            const localeValue = localeResourcesMap.get(enKey);
+            if (localeResourcesMap.has(enKey)) {
+                const localeValue = localeResourcesMap.get(enKey);
 
-            if (localeValue !== undefined) {
                 const enValueType = typeof enValue;
                 const localeValueType = typeof localeValue;
 
                 if (localeValueType !== enValueType) {
-                    throw new Error(`Mismatched value type ${localeValueType} for key ${enFullKey} in ${locale} resources (expected ${enValueType})`);
-                }
-
-                if (enValueType === "string") {
+                    // Mismatched value type is allowed when one is undefined to indicate that the resource doesn't apply in that locale.
+                    if (enValueType !== "undefined" && localeValueType !== "undefined") {
+                        throw new Error(`Mismatched value type ${localeValueType} for key ${enFullKey} in ${locale} resources (expected ${enValueType})`);
+                    }
+                } else if (enValueType === "string") {
                     // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- Value is known to be string.
                     const enParameterNames = AlphaPublisher.#parseParameterNames(enValue as unknown as string);
 
@@ -140,7 +141,8 @@ class AlphaPublisher extends Publisher {
                         }
                     }
                 } else if (enValueType === "object") {
-                    AlphaPublisher.#assertValidResources(enValue, locale, localeValue, `${parent === undefined ? "" : `${parent}.`}${enKey}`);
+                    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- Value is known to be object.
+                    AlphaPublisher.#assertValidResources(enValue, locale, localeValue!, `${parent === undefined ? "" : `${parent}.`}${enKey}`);
                 }
             // Full locale falls back to language so ignore if missing.
             } else if (!isFullLocale) {
