@@ -796,9 +796,10 @@ export abstract class Publisher {
             this.#updateSourceVersion(baseVersion);
         }
 
-        const version = `${baseVersion}${repositoryPublishState.preReleaseIdentifier === "alpha" && preReleaseDateTime !== undefined ?
-            `.${preReleaseDateTime}` :
-            ""
+        const version = `${baseVersion}${
+            repositoryPublishState.preReleaseIdentifier === "alpha" && preReleaseDateTime !== undefined ?
+                `.${preReleaseDateTime}` :
+                ""
         }`;
 
         repositoryPublishState.packageConfiguration.version = version;
