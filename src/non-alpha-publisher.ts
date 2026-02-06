@@ -351,11 +351,20 @@ export class NonAlphaPublisher extends Publisher {
 
             // Helper repositories don't have version flow.
             if (repository.dependencyType !== "helper" && phase === "prod") {
-                // Branch is version preceded by 'v'.
-                const branchVersionIndex = this.configuration.versions.indexOf(branch.substring(1));
-                const nextBranch = branchVersionIndex !== this.configuration.versions.length - 1 ?
-                    `v${this.configuration.versions[branchVersionIndex + 1]}` :
-                    "main";
+                let nextBranch: string | undefined = undefined;
+                let nextBranchVersionIndex = this.configuration.versions.indexOf(branch.substring(1));
+
+                while (nextBranch === undefined && ++nextBranchVersionIndex < this.configuration.versions.length) {
+                    // Branch is version preceded by 'v'.
+                    const candidateNextBranch = `v${this.configuration.versions[nextBranchVersionIndex]}`;
+
+                    if (this.run(RunOptions.RunAlways, true, "git", "ls-remote", "--heads", "origin", candidateNextBranch).length !== 0) {
+                        // Next branch exists.
+                        nextBranch = candidateNextBranch;
+                    }
+                }
+
+                nextBranch ??= "main";
 
                 await this.#runStep("pull request", async () =>
                     this.#octokit.rest.pulls.create({
